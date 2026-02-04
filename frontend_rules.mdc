@@ -1,0 +1,581 @@
+---
+alwaysApply: false
+---
+FRONTEND AGENT – MASTER RULES & UX SPEC
+CodeArena: The Neural Combat Network
+The frontend must look and feel like a premium dark SaaS dashboard crossed with a neon hacker‑gamer arena (similar to the reference screenshots), while staying performant and readable.
+
+1. Tech Stack & Architecture (Non‑negotiable)
+Framework: React 18+ (or React 19 if already configured) with TypeScript.
+​
+
+Bundler: Vite.
+​
+
+Routing: React Router (App Router already in project).
+​
+
+Styling: TailwindCSS with custom design tokens.
+​
+
+State:
+
+React Context for auth.
+​
+
+Zustand OR React Query for app/server state where appropriate.
+​
+
+API: Axios client with interceptors, using the shared API_BASE_URL and ENDPOINTS config.
+​
+
+Editor: @monaco-editor/react for code editing.
+​
+
+Real‑time: socket.io-client for WebSocket‑based features.
+​
+
+Use the existing project layout: src/components, src/pages, src/contexts, src/services, src/config, src/styles, etc., do not invent a new structure.
+​
+
+2. Visual Identity & Design System
+2.1 Core Aesthetic
+Base background: true black or near‑black (#000000 / #02010A) with soft radial gradients in corners (neon “blooms”).
+
+Accent palette:
+
+Electric cyan: #00F5FF
+
+Hot pink: #FF10F0
+
+Neon purple: #B01EFF
+
+Radioactive green: #39FF14
+
+Typography:
+
+Display headings: a futuristic sans (e.g., Orbitron/Space Grotesk) for big titles.
+
+Body text: clean, neutral sans (Inter, system stack).
+
+Effects:
+
+Glassmorphism: translucent cards with backdrop-blur and subtle borders.
+
+Neon glows: sparse but impactful box-shadow and outer glows for CTAs, key stats, and hero elements.
+
+Gradients: angled neon gradients for primary buttons and hero backgrounds (e.g., cyan → pink).
+
+Tailwind tokens:
+
+Extend tailwind.config.js with colors like arena-bg, arena-card, arena-cyan, arena-pink, arena-purple, arena-green and use them consistently instead of hexes in components.
+​
+
+2.2 Layout Principles
+Hero pages (landing, marketing):
+
+2‑column layout: text on left, live/animated preview on right (editor, dashboard, or battle).
+
+Centered max width (~1200–1440px) with generous padding (top ~96px, sides ~24–40px).
+
+App dashboard:
+
+Desktop: left sidebar with icons/labels, main content panel, optional right “activity” panel.
+
+Mobile: bottom or slide‑in navigation; collapsible sidebar.
+
+Spacing:
+
+Use a clear spacing scale (4/8/12/16/24/32/40/48px).
+
+No cramped UI; breathing room around cards and sections.
+
+3. Global UX Rules
+Always show clear primary CTA above the fold (e.g., “Start Battle”, “Get Started”, “See How It Works”).
+
+Every page must have:
+
+A visible page title + short supporting subtitle.
+
+A consistent navbar and/or sidebar for navigation.
+
+Proper loading states (skeletons/spinners) and error messaging.
+
+Never leave a screen in a “blank” state:
+
+Use empty states with one sentence explaining what’s missing and a CTA (e.g., “No battles yet. Start your first match.”).
+
+Use optimistic but honest microcopy:
+
+Buttons: “Start Battling”, “Join Queue”, “Run Code”, “Submit & Fight”.
+
+Alerts: “Something broke, but your code is safe. Try again.” instead of generic “Error.”
+
+Accessibility:
+
+High contrast text on dark backgrounds.
+
+Focus outlines must be clearly visible.
+
+All interactive elements must be keyboard accessible (Enter/Space triggers).
+
+4. Pages & Flows (End‑to‑End UX)
+4.1 Landing Page (/)
+Goal: Sell the concept like a real product marketing site (think CoCreate + “Master coding through real‑time battles”). It should feel like a startup homepage, not a dev demo.
+
+Sections (in order):
+
+Hero Section
+
+Left:
+
+Eyebrow label: “CodeArena Presents” or “THE NEURAL COMBAT NETWORK”.
+
+H1: short, punchy value prop (e.g., “Master coding through real‑time battles.”).
+
+Subtext: 2 lines explaining “algorithms that fight, evolve, and can die permanently.”
+
+Primary CTA: gradient neon button “Start Battling” (if unauthenticated → signup/login, if authenticated → dashboard).
+
+Secondary CTA: subtle outline button “See how it works” that scrolls to overview or opens a short explainer.
+
+Social proof row: “10K+ matches played”, “Loved by competitive coders”, or placeholder stats.
+
+Right:
+
+A “mock app preview” card:
+
+Top: fake code editor card (Monaco style) with syntax highlighting and a small header (e.g., “Solution.java”).
+
+Bottom: stat cards showing “Current rank”, “Win rate”, “Terminal feed” similar to your reference.
+
+Smooth entrance animation (Framer Motion: slide‑up + fade with slight scale).
+
+How It Works
+
+3–4 horizontal cards:
+
+“1. Queue for a match”
+
+“2. Code in real‑time”
+
+“3. Win, evolve, and climb leaderboards”
+
+Each card: icon, title, 2 lines of copy, subtle hover lift + glow.
+
+Feature Grid (Bento style)
+
+Highlight: real‑time battles, Evolution Wars, living algorithms (traits/permadeath), replays/roasts/God Mode.
+​
+
+Use a Masonry/Bento layout with different card heights and background accents.
+
+Social Proof / For Whom
+
+Rows like: “For ICPC competitors”, “For interview prep grinders”, “For DevOps nerds building insane infra”.
+
+Final CTA
+
+Hero‑like band with short value statement and single strong CTA “Join the Arena”.
+
+Behaviour:
+
+If user is logged in, navbar should show “Dashboard” instead of “Get Started”.
+
+Use Framer Motion for section fade‑ins and simple parallax on scroll, but avoid over‑animating every element.
+
+4.2 Auth Pages (/login, /signup)
+Goal: Fast, clean, minimal friction, still aligned with neon theme.
+
+Layout:
+
+Split screen:
+
+Left: compact card with form.
+
+Right: illustration / blur‑gradient background with a single sentence like “Algorithms are battling right now. Join them.”
+
+Form UX:
+
+Inputs: large, full width, proper labels, placeholder text, and error messages.
+
+Buttons: one primary action per page (“Log In”, “Create account”).
+
+Links: “Forgot password?”, “Already have an account? Log in” with clear navigation.
+
+Copy:
+
+Login: “Welcome back to the Arena.”
+
+Signup: “Create your pilot profile.” (username, email, password, confirmation).
+
+Validation:
+
+Show inline field errors (red text below input).
+
+Disable submit button while submitting; show a small spinner indicator.
+
+4.3 Dashboard (/dashboard)
+Goal: Feel like a professional SaaS workspace with a gamer skin; central hub for everything.
+
+Layout:
+
+Left sidebar (always visible on desktop):
+
+Logo + app name.
+
+Sections:
+
+Home / Overview
+
+Battles
+
+Algorithms
+
+Problems
+
+Leaderboard
+
+Guild (later)
+
+Settings
+
+Use icons (lucide‑react) plus labels.
+​
+
+Main content area:
+
+Top row:
+
+Greeting (“Welcome back, {username}”).
+
+Quick stats chips: current ELO, win rate, current streak, active algorithm count.
+
+Body:
+
+Left: “Next Action” cards:
+
+“Quick Match” card with a big button.
+
+“Daily Challenge” card with streak indicator.
+
+Right: Activity feed:
+
+Recent battles (result, opponent, problem, time).
+
+Recent algorithm events (evolved, learned trait, died/permadeath).
+
+Components:
+
+Use cards with consistent padding, border, and glow on hover.
+
+Animate counters for ELO/XP changes (react‑countup).
+​
+
+Use toasts (react‑hot‑toast) for small success/info messages when actions complete.
+​
+
+4.4 Problems List (/problems)
+Goal: Professional, filterable table like a SaaS “Issues/Tasks” page.
+
+Layout:
+
+Top bar:
+
+Page title: “Problems”.
+
+Search input (by name/tags).
+
+Filters: dropdowns for difficulty, tags, status (solved/unsolved).
+
+Content:
+
+Responsive table with columns:
+
+Name
+
+Difficulty (colored pill)
+
+Acceptance rate / success rate
+
+Estimated time (e.g., 15 min battle | 10 min solo)
+
+Actions (“Solve”, maybe “Practice solo”).
+
+Alternating row background; on hover, row slightly lifts and highlights.
+
+Behaviour:
+
+Clicking a row or “Solve” opens ProblemDetail (coding interface) and optionally offers:
+
+“Start solo practice” or “Use in 1v1 battle” depending on context.
+
+4.5 Problem Detail / Coding Arena (/problem/:id)
+This is the heart of the app; it must feel like a cockpit, not a generic editor.
+​
+
+Layout:
+
+Top:
+
+Breadcrumb: “Problems / {Problem title}”.
+
+Right: “Watch Replay” (if there’s a recorded session) and maybe status badges.
+​
+
+Main split:
+
+Left panel (40–50% width, resizable via drag bar):
+
+Problem title + difficulty pill.
+
+Scrollable problem description (markdown rendered).
+
+Tabs or segmented control:
+
+Description
+
+Examples
+
+Constraints
+
+Test cases (visible ones only).
+
+Right panel:
+
+Monaco editor with language selector, theming aligned with neon (custom dark theme).
+​
+
+Action bar:
+
+“Run Code” (primary ghost button).
+
+“Submit” (primary solid gradient button).
+
+Small indicator: “REC ●” when God Mode/session recording is active.
+​
+
+Bottom pane:
+
+Tabs: “Console”, “Test Results”, “Performance”.
+
+Show per‑test results: pass/fail, input snippet, expected vs actual.
+​
+
+States:
+
+Loading: skeletons for both panels.
+
+Running: disable buttons, show “Running tests…” with spinner.
+
+Submit success:
+
+Immediate toast + inline banner “Solution accepted – preparing your roast…”.
+​
+
+After a delay, show “Roast My Code” modal.
+​
+
+Submit fail:
+
+Highlight failing tests, show human‑friendly error summary.
+
+Viral features (hooked here):
+
+Roast My Code modal:
+
+Animated text reveal, context‑aware roast and share button (share text + copy link).
+​
+
+God Mode Replay:
+
+“Watch Replay” button opens rrweb player modal with playback controls.
+​
+
+4.6 Battles List & Match Details (/battles, /battles/:id)
+Goal: Make battles feel like match history in ranked games.
+
+Battles list:
+
+Filters: mode (Gladiator/Evolution/etc.), result (win/loss), timeframe.
+
+Columns:
+
+Opponent, problem, result, score, time, mode, “View”.
+
+Use small icons to show mode/type.
+
+Battle detail:
+
+Header:
+
+“You vs {opponent}” with result pill (Win/Loss/Draw).
+
+Summary grid: ELO change, score, duration, problem name.
+
+Body:
+
+Tabs:
+
+“Overview” (scores, charts).
+
+“Code Comparison” (split view showing both final solutions).
+
+“Timeline” (events: runs, submits, tests).
+
+“Replay” (hooks into God Mode and/or highlight if available).
+​
+
+Actions:
+
+“Rematch”, “Copy challenge link”, “Share results”.
+
+4.7 Leaderboards (/leaderboard)
+Tabs:
+
+Global, Friends, Guild, Algorithms.
+
+Table or cards with:
+
+Rank, username, avatar, ELO, wins/losses, streak.
+
+Mini CTA: “Challenge” for each row to start a direct challenge vs that player.
+
+4.8 Profile / Settings (/profile, /settings)
+Show:
+
+Avatar, username, bio, country, preferred language.
+
+Stats summary: battles, streaks, traits unlocked.
+
+Settings:
+
+Account info, theme toggles (sound on/off, particle intensity, etc.).
+
+5. Component System & Behaviour
+5.1 Core Reusable Components
+AppLayout: root layout with:
+
+Background (OLED gradient, subtle animations).
+
+Navbar and optionally sidebar, depending on route.
+​
+
+Navbar:
+
+Left: logo + “CodeArena”.
+
+Center: top‑level nav (Product, Learn, etc. on marketing; Dashboard, Battles, Problems on app).
+
+Right: auth CTA (Log in/Sign up) or user avatar dropdown if authenticated.
+​
+
+SidebarNav:
+
+Icon + label items, highlight active route.
+
+Compact collapsed mode with just icons on small widths.
+
+PrimaryButton, SecondaryButton, GhostButton:
+
+Encapsulate gradient styles and hover/focus states so they are consistent.
+
+Card:
+
+Reusable glassmorphism container with shadow and border.
+
+StatBadge:
+
+Small pill showing stat label and value (e.g., “ELO 1420”, “Win Rate 68%”).
+
+Never write raw button/div for important actions; use these abstractions.
+
+5.2 Animations Guidelines
+Use Framer Motion for:
+
+Page transitions (fade/slide in).
+
+Hero elements (slight entrance).
+
+Hover effects on cards and buttons.
+​
+
+GSAP/Three/Vanta/Particles:
+
+Reserve for landing and maybe high‑impact backgrounds (animated beams, waves), not for every screen.
+​
+
+Performance:
+
+Avoid heavy 3D/particle animations on core app pages that must stay snappy (editor, battles).
+
+Provide a “reduced motion / low FX” toggle in settings and respect OS prefers-reduced-motion where possible.
+
+6. Data Flow & Integration
+All API interactions must go through the apiClient and services layer (authService, challengesAPI, etc.) instead of calling fetch or axios directly in components.
+​
+
+Authentication:
+
+Use existing AuthContext for user/token state; do not reinvent auth.
+​
+
+Protected routes must use the existing ProtectedRoute wrapper.
+​
+
+Real‑time:
+
+Wrap WebSocket logic in custom hooks like useBattleSocket/useMatchmakingSocket instead of using socket.io-client directly everywhere.
+​
+
+7. States, Errors, and Feedback
+For every async operation (API call, WebSocket join, match creation):
+
+Show loading:
+
+Button: spinner + “Loading…” text, disabled state.
+
+Screen: skeletons or centered spinners where appropriate.
+​
+
+Handle errors:
+
+Small toast with human message (“We couldn’t fetch your battles. Retrying…”).
+
+In place fallback UI if critical (“Couldn’t load problems. [Retry]”).
+
+Show success feedback:
+
+Toasts for major events (login, match won, evolution complete).
+
+Confetti (react‑confetti) only for big milestones (first win, major rank up), not for every action.
+​
+
+8. Coding Standards (Frontend‑Specific)
+Use TypeScript strictly; no any for new code unless truly necessary.
+​
+
+Component files:
+
+One primary component per file with explicit props interface.
+
+Keep components under ~200 lines; factor out subcomponents as needed.
+
+Hooks:
+
+Prefix with use* and keep them pure and reusable.
+
+Avoid:
+
+Inline business logic in JSX; compute outside the render or in hooks.
+
+Duplicating layout logic across pages; use layout components.
+
+9. Frontend Non‑Goals (To Avoid Confusion)
+Do not implement DevOps or infrastructure concerns in frontend (no Docker/K8s stuff here).
+
+Do not build an entire no‑limits 3D game; visuals must support UX, not overshadow it.
+
+Do not change global routing/architecture away from the documented structure without explicit instruction.
+​
+

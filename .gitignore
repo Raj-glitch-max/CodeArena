@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+.env
+.env.*
+
+# Backend
+backend/.venv/
+backend/dev.db
+backend/.pytest_cache/
+
+# Node/Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS/Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs
+*.log

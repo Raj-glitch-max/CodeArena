@@ -1,0 +1,476 @@
+---
+alwaysApply: true
+---
+CodeArena: The Neural Combat Network
+Single Source of Truth – Product & System Concept
+This document defines what CodeArena is, how it behaves, and which parts are in/out of scope for the current build. All agents must treat this as the canonical product definition.
+
+1. High‑Level Vision
+CodeArena is a real‑time competitive coding platform where your algorithm behaves like a living organism that fights, evolves, and can permanently die. It combines competitive programming, online games, and esports into a single experience.
+​
+
+Core goals:
+
+Make practicing code feel like playing an online ranked game, not doing homework.
+​
+
+Turn algorithms into persistent “characters” that gain XP, evolve traits, and fight even when you are offline.
+
+Build a platform that is fun for players and impressive enough to showcase serious backend, frontend, and DevOps skills.
+
+High‑level pillars:
+
+Living algorithms: Every submitted algorithm becomes a persistent entity with stats, traits, and match history.
+
+Real‑time battles: 1v1 and larger battles run with live WebSockets, timers, and visualizations.
+
+Progression & economy: ELO rating, XP, streaks, traits, currencies, and a light marketplace.
+​
+
+Spectator‑first: Every battle is watchable, replayable, and shareable.
+
+2. Core Game Loop (What a Player Actually Does)
+For a normal user, the daily loop should look like this:
+
+Log in and land on the dashboard with their rating, streak, active algorithms, and current events.
+​
+
+Choose one of:
+
+Quick 1v1 battle (Gladiator Arena, time‑boxed).
+​
+
+Evolution run (watch their seed algorithm evolve over generations).
+
+Ecosystem exploration (their organism roaming the shared map – future phase).
+
+Single‑player daily challenge (fast, streak‑oriented).
+​
+
+Write or tweak an algorithm in the in‑browser editor (Monaco).
+​
+
+Queue for a match or start an evolution run: matchmaking picks an opponent/problem, engine runs the battle.
+
+See results immediately: winner, score breakdown, performance stats, and optional roast / replay.
+
+Gain XP, traits, tokens, and maybe permadeath consequences for the algorithm that fought.
+​
+
+Optionally watch live matches, share clips, or issue a rematch / revenge challenge.
+
+Everything in the system should reinforce this loop: quick entry, intense 10–20 minute sessions, visible progression, and social hooks.
+
+3. Game Modes (Logical Definition)
+3.1 Gladiator Arena – 1v1 Real‑Time Battles (MVP Focus)
+Purpose: The primary competitive mode for the MVP; should be fully implemented end‑to‑end before anything else.
+
+Flow:
+
+Player selects:
+
+Algorithm to use (one of their saved organisms).
+
+Language (Python/JS/Rust, etc., constrained by backend).
+
+Player hits “Quick Match”:
+
+Matchmaker finds an opponent with similar ELO (± configurable range) and same difficulty bracket.
+
+If no human is available, system can optionally match against an AI/bot in future phases.
+
+Match is created:
+
+A coding problem is selected based on shared difficulty (easy/medium/hard/expert).
+
+A battle record is inserted into the database with status pending.
+​
+
+Both players connect to a WebSocket room for this battle:
+
+Server maintains authoritative state (timer, scores, submissions) in Redis.
+​
+
+Clients see synchronized timers, test results, and visualizations.
+
+During the match (15–30 minutes, configurable):
+
+Players edit code in Monaco editor.
+​
+
+“Run” sends code to a safe execution service, returns sample test results.
+
+“Submit” locks‑in for full test suite evaluation; once submitted, code is read‑only for that player.
+
+Server tracks time taken, tests passed, efficiency, and quality metrics.
+
+Win logic (core rule set):
+
+Primary: higher total score (correctness + efficiency + code‑quality) wins.
+
+Tie‑break 1: faster submission time.
+
+Tie‑break 2: fewer runtime errors.
+
+Tie‑break 3: random but logged (for fairness transparency).
+
+Post‑match:
+
+Store submissions and results (code_submissions table) with metrics.
+
+Update user ELO and win/loss stats atomically.
+​
+
+Update algorithm organism stats, XP, and potential traits.
+​
+
+Generate a replay token and (later) highlight assets.
+
+Spectator logic (for later phase):
+
+Spectators connect to a read‑only WebSocket room.
+
+They receive delta‑encoded updates of both code panes and scores; no ability to send input.
+
+3.2 Evolution Wars – Genetic Algorithm Survival
+Purpose: Let a single player watch their “seed algorithm” evolve through many generations, using a built‑in GA pipeline. This is initially offline/async: not a head‑to‑head match, but a spectacle and optimization toy.
+​
+
+Flow:
+
+Player submits a seed algorithm for a specific problem or problem class.
+​
+
+System spawns N variants (e.g., 100–1000) by applying constrained mutations:
+
+Parameter tweaks (thresholds, constants, loop bounds).
+
+Strategy toggles (e.g., choose between a set of predefined algorithmic templates).
+
+Code‑level random rewriting is abstracted; the engine operates on a safe intermediate representation rather than raw arbitrary source.
+​
+
+All variants are evaluated asynchronously against a designated test suite:
+
+Metrics: tests passed, execution time, memory usage, robustness to randomized cases.
+
+Selection:
+
+Top X% (e.g., 10–20%) survive this generation.
+
+Survivors are used to create new offspring via crossover and mutation.
+
+Repeat for G generations (e.g., 20–50).
+​
+
+Final champion:
+
+Becomes a new algorithm organism linked to the player (generation number > 1).
+
+Gains special “Ancient One / Hybrid Vigor / etc.” traits.
+​
+
+Important constraints so Cursor doesn’t hallucinate:
+
+The GA system does NOT mutate arbitrary user source code with random string edits; it operates on structured representations and/or pre‑defined strategies to keep compilation safe.
+
+Initial MVP may fake some mutation logic (e.g., toggling between a handful of algorithm variants) while preserving the same external experience (many generations, survival stats).
+​
+
+3.3 Ecosystem Wars – Persistent MMO‑Style World (Later Phase)
+Purpose: A long‑term “world” where many algorithms/organisms roam zones, fight, and gather resources even while players are offline.
+​
+
+High‑level logic:
+
+The world is divided into zones (easy/medium/hard/boss/abyss).
+​
+
+Each organism has:
+
+Home zone (where it idles).
+
+Behavior policy (aggressive, cautious, farming, boss‑focused).
+
+Resource counters (XP Crystals, Evolution Tokens, etc.).
+​
+
+A world tick loop periodically:
+
+Moves organisms according to their policies.
+
+Simulates encounters; when two organisms meet, run an appropriate battle simulation (can reuse Gladiator logic with time/computation limits).
+
+Applies permadeath rules: after 3 deaths, algorithm is marked dead and removed from the active world.
+
+Guilds:
+
+Group of users with pooled organisms.
+
+Can schedule raids/boss fights and share discovered traits.
+​
+
+This mode is intentionally deferred until Gladiator + Evolution Wars + core progression are stable.
+
+4. Algorithm Organisms & Permadeath
+4.1 Data Model (Conceptual)
+Every algorithm organism is a record with at least:
+
+Owner user ID.
+
+Language and current source code.
+
+Core stats (derived from benchmark results):
+
+speed (median execution time).
+
+memory (median memory usage).
+
+adaptability (performance under randomized / dirty inputs).
+
+resilience (error robustness, mutation tolerance).
+
+Lifecycle:
+
+is_alive (boolean).
+
+death_count (0–3).
+
+generation (1 for hand‑written, >1 for evolved offspring).
+
+Traits: a JSONB array of string identifiers (e.g., "Cache Warrior", "Phoenix").
+
+History references:
+
+parent_algorithm_id.
+
+creation, update, killed_at timestamps.
+​
+
+4.2 Traits & Earning Rules
+Traits are named passive modifiers with unlock conditions. Examples (concept, not code):
+​
+
+“Cache Warrior”: boosted performance on repeated inputs.
+
+“Memory Monk”: reduced memory usage.
+
+“Chaos Adapter”: improved results on randomized tests.
+
+“Phoenix”: survives a single fatal loss per day.
+
+“Giant Slayer”: extra XP for beating much higher‑ranked opponents.
+
+Earning rules:
+
+Winning N battles in a row with one organism → unlock streak trait.
+
+Surviving N generations in Evolution Wars → unlock long‑lived trait.
+​
+
+Defeating an organism with ELO difference above a threshold → unlock “Giant Slayer”.
+
+4.3 Permadeath Rules
+Every organism tracks death_count.
+
+When an organism loses a match that counts for death (ranked battle, high‑stake zone, or Singularity Event), death_count increments.
+
+At 3 deaths, organism is flagged as dead:
+
+It cannot join new battles or evolution runs.
+
+It still appears in history/replays.
+
+Special items (e.g., Phoenix Egg) or traits may revive it once each season.
+​
+
+This is enforced at the application logic level – all matchmaking and battle creation APIs must check is_alive and death_count < 3 before queueing an algorithm.
+
+5. Player Progression & Social Systems
+Core progression axes:
+
+User ELO rating: for matchmaking and rank.
+
+XP and level: for battle pass / season progression.
+
+Streaks: daily challenges and win streaks.
+
+Algorithm organism history: each algorithm has its own record of kills, deaths, traits.
+
+Cosmetics: editor themes, avatar frames, particle effects (purely cosmetic).
+
+Social features (initial scope):
+
+Global and per‑mode leaderboards.
+​
+
+Friend / rival relationships (basic follow + direct challenge).
+
+Simple guilds with name, tag, members, and basic stats (no complex roles yet).
+​
+
+Rematch / revenge system after a battle ends.
+​
+
+6. Economy & Monetization (Logical Model)
+Monetization should not affect match fairness (no pay‑to‑win buffs).
+​
+
+Free tier:
+
+1 active algorithm at a time.
+
+Access to most core modes (Gladiator, basic Evolution Wars).
+​
+
+Premium:
+
+Multiple active algorithms (e.g., 3).
+
+Access to advanced analytics (more detailed battle breakdowns, replay tools).
+​
+
+Access to some special visual cosmetics and historic data.
+
+Elite:
+
+More active algorithms (e.g., up to 10).
+
+Custom private arenas and tournaments.
+
+Limited revival items (like “Phoenix Egg” per month).
+​
+
+Currencies / items:
+
+Evolution Tokens: earned from matches/evolution, used to unlock traits or new runs.
+​
+
+Cosmetic shards/tokens for skins, editor themes, etc.
+
+Real money only buys cosmetics, QoL, and more storage/slots; NEVER direct power in battles.
+
+7. System Architecture (What Exists vs New)
+7.1 Existing Foundations to Reuse
+Backend foundations already built and documented:
+​
+
+FastAPI backend with:
+
+Async PostgreSQL via SQLAlchemy 2.0 (async engine, connection pooling).
+
+Redis client for caching, leaderboard, and pub/sub.
+
+JWT‑based auth, bcrypt hashing, request middleware, and health checks.
+
+Service layer modules for battles, matchmaking, challenges, users, and submissions (some not yet wired to routers).
+
+Models for users, challenges/problems, submissions, matches, etc., with ELO ratings and stats.
+​
+
+WebSocket/battle services with an internal tick‑loop and Redis‑state design (needs integration).
+​
+
+Frontend foundations already built and documented:
+​
+
+React + Vite + TypeScript app with router, auth context, and API client.
+
+Monaco editor integration and ProblemDetail page with run/submit flow.
+
+Viral UX elements like “Roast My Code” and session recording (“God Mode”) using rrweb.
+​
+
+Tailwind‑based cyberpunk/glassmorphism design system.
+
+These are the baseline; new features (organisms, traits, permadeath, multi‑mode structure) should extend this rather than contradict it.
+
+7.2 Target Backend Shape (for Cursor’s understanding)
+Single FastAPI app with:
+
+REST API (/api/v1/...) for auth, users, algorithms, battles, evolution, guilds.
+​
+
+WebSocket endpoints for real‑time battles and world events.
+​
+
+Postgres used for:
+
+Persistent user/algorithm/problem/battle data.
+
+Storing submissions and performance metrics.
+
+Redis used for:
+
+Matchmaking queues (ZSET per mode/difficulty).
+​
+
+Active battle states and world ticks.
+
+Pub/sub channels for pushing battle updates to WebSockets.
+
+Code execution:
+
+Isolated containers or Wasm runtime, time and memory limited.
+
+Queue‑based execution (can be SQS/Celery/Fargate in later infra, but the logical contract is: “submit job, get deterministic execution report within timeout”).
+
+Important: DevOps (Docker, K8s, infra) is handled manually by the project owner, not autogenerated. Any references to deployments in this document describe the logical design and constraints, not code to be synthesized.
+
+8. Frontend Experience & Visual Direction (For Prompts, Not Hard Rules)
+The UI should feel like a premium SaaS dashboard fused with a neon hacker‑gamer environment: deep black backgrounds, high‑definition neon accents, and smooth micro‑interactions.
+​
+
+Design vibes:
+
+Base background: pure black or near‑black, with subtle gradients and “neon fog” in corners.
+
+Accent palette: electric cyan, hot pink, neon purple, radioactive green (configurable Tailwind theme).
+
+Components: glassmorphic cards, gradient buttons, glowing focus states, and subtle 3D/parallax where it adds value.
+​
+
+Animation stack:
+
+Framer Motion for component/page transitions.
+
+GSAP/ScrollTrigger or similar for hero/landing sequences.
+
+Monaco + particles/ambient visuals near the code editor.
+​
+
+UX priorities:
+
+Simple flows: “Start Battle” in one or two clicks.
+
+Clear hierarchy: hero CTA, live matches, your active organisms.
+
+Performance: keep animations GPU‑friendly and avoid jank on mid‑range laptops.
+
+These are creative prompts for the frontend agent, not strict implementation rules; they should be honored where they don’t conflict with performance or accessibility.
+
+9. Scope & Non‑Goals (To Avoid Confusion)
+Within current scope:
+
+1v1 Gladiator mode with ELO, submissions, and basic post‑match breakdowns.
+
+Baseline organism model (algorithm records with stats, traits array, and death counter).
+
+First version of Evolution Wars with batched generations (even if mutation logic is simplified at first).
+​
+
+Core UX: landing, auth, dashboard, problem solving page, match results, basic leaderboards.
+
+Deferred / out of scope for first implementation:
+
+Full MMO “Ecosystem Wars” with roaming agents 24/7 (design now, implement later).
+​
+
+Complex tournament brackets, guild wars, and quarterly “Singularity Events” – these can be designed but initially stubbed or disabled in production.
+​
+
+Fully automated, production‑grade highlight video rendering and deep AI code coaching; early versions can be simple text feedback and static replays.
+​
+
+This document is the canonical description of CodeArena: The Neural Combat Network.
+Any future rules or prompts for backend, frontend, database, or DevOps agents must align with this logic and terminology.

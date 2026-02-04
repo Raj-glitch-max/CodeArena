@@ -1,0 +1,1157 @@
+---
+alwaysApply: false
+---
+📋 RULE #3: DATABASE AGENT (PostgreSQL + Migrations)
+text
+# DATABASE AGENT RULES - PostgreSQL, Schema Design, Migrations
+# Extends: Global Rules
+
+## TECH STACK
+- **Database**: PostgreSQL 15+
+- **Migration Tool**: Alembic
+- **Connection Pooling**: SQLAlchemy async engine
+- **Monitoring**: pgAdmin / Grafana
+
+## SCHEMA DESIGN PRINCIPLES
+
+### Naming Conventions:
+```sql
+-- Tables: plural, snake_case
+users
+battles
+algorithms
+algorithm_executions
+
+-- Columns: snake_case
+user_id
+created_at
+algorithm_code
+
+-- Indexes: idx_<table>_<column(s)>
+idx_battles_status
+idx_users_email
+
+-- Foreign keys: fk_<from_table>_<to_table>
+fk_battles_users_player1
+fk_battles_users_player2
+
+-- Constraints: uq_<table>_<column(s)>
+uq_users_email
+uq_users_username
+Primary Keys:
+sql
+-- ✅ GOOD - Auto-incrementing integer (fast, small)
+id SERIAL PRIMARY KEY
+
+-- ✅ ALSO GOOD - UUID (distributed systems, no collision)
+id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+
+-- ❌ BAD - Composite primary key (slow joins)
+PRIMARY KEY (user_id, battle_id)
+Indexes (CRITICAL FOR PERFORMANCE):
+sql
+-- Index foreign keys (used in JOINs)
+CREATE INDEX idx_battles_player1_id ON battles(player1_id);
+CREATE INDEX idx_battles_player2_id ON battles(player2_id);
+
+-- Index WHERE clause columns
+CREATE INDEX idx_battles_status ON battles(status);
+CREATE INDEX idx_battles_created_at ON battles(created_at DESC);
+
+-- Composite index for common queries
+CREATE INDEX idx_battles_status_created ON battles(status, created_at DESC);
+
+-- Partial index (for specific conditions)
+CREATE INDEX idx_active_battles ON battles(id) WHERE status = 'running';
+
+-- Full-text search
+CREATE INDEX idx_algorithms_code_fts ON algorithms USING gin(to_tsvector('english', code));
+CORE SCHEMA
+Users Table:
+sql
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    
+    -- Stats
+    rating INT DEFAULT 1000,
+    battles_won INT DEFAULT 0,
+    battles_lost INT DEFAULT 0,
+    
+    -- Subscription
+    subscription_tier VARCHAR(20) DEFAULT 'free',
+    subscription_expires_at TIMESTAMP,
+    
+    -- Timestamps
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    last_login_at TIMESTAMP,
+    
+    -- Indexes
+    CONSTRAINT chk_rating CHECK (rating >= 0),
+    CONSTRAINT chk_subscription_tier CHECK (subscription_tier IN ('free', 'premium', 'elite'))
+);
+
+-- Indexes
+CREATE INDEX idx_users_rating ON users(rating DESC);
+CREATE INDEX idx_users_created_at ON users(created_at DESC);
+Algorithms Table:
+sql
+CREATE TABLE algorithms (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    
+    -- Code
+    code TEXT NOT NULL,
+    language VARCHAR(20) NOT NULL,
+    
+    -- Metadata
+    name VARCHAR(100),
+    description TEXT,
+    
+    -- Stats
+    battles_won INT DEFAULT 0,
+    battles_lost INT DEFAULT 0,
+    death_count INT DEFAULT 0, -- Permadeath tracker
+    is_alive BOOLEAN DEFAULT TRUE,
+    
+    -- Performance
+    avg_execution_time_ms INT,
+    avg_memory_usage_mb INT,
+    
+    -- Evolution
+    generation INT DEFAULT 1,
+    parent_algorithm_id INT REFERENCES algorithms(id),
+    
+    -- Traits (JSON array)
+    traits JSONB DEFAULT '[]',
+    
+    -- Timestamps
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    killed_at TIMESTAMP,
+    
+    CONSTRAINT chk_language CHECK (language IN ('python', 'rust', 'javascript')),
+    CONSTRAINT chk_death_count CHECK (death_count <= 3)
+);
+
+-- Indexes
+CREATE INDEX idx_algorithms_user_id ON algorithms(user_id);
+CREATE INDEX idx_algorithms_is_alive ON algorithms(is_alive);
+CREATE INDEX idx_algorithms_battles_won ON algorithms(battles_won DESC);
+CREATE INDEX idx_algorithms_traits ON algorithms USING gin(traits);
+Battles Table:
+sql
+CREATE TABLE battles (
+    id SERIAL PRIMARY KEY,
+    
+    -- Players
+    player1_id INT NOT NULL REFERENCES users(id),
+    player2_id INT NOT NULL REFERENCES users(id),
+    
+    -- Algorithms
+    algorithm1_id INT NOT NULL REFERENCES algorithms(id),
+    algorithm2_id INT NOT NULL REFERENCES algorithms(id),
+    
+    -- Problem
+    problem_id INT NOT NULL REFERENCES problems(id),
+    
+    -- Status
+    status VARCHAR(20) DEFAULT 'pending',
+    
+    -- Results
+    winner_id INT REFERENCES users(id),
+    winner_algorithm_id INT REFERENCES algorithms(id),
+    
+    -- Performance metrics (JSON)
+    algorithm1_metrics JSONB,
+    algorithm2_metrics JSONB,
+    
+    -- Timestamps
+    created_at TIMESTAMP DEFAULT NOW(),
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    
+    CONSTRAINT chk_status CHECK (status IN ('pending', 'running', 'completed', 'cancelled')),
+    CONSTRAINT chk_different_players CHECK (player1_id != player2_id)
+);
+
+-- Indexes
+CREATE INDEX idx_battles_player1_id ON battles(player1_id);
+CREATE INDEX idx_battles_player2_id ON battles(player2_id);
+CREATE INDEX idx_battles_status ON battles(status);
+CREATE INDEX idx_battles_created_at ON battles(created_at DESC);
+CREATE INDEX idx_battles_winner_id ON battles(winner_id);
+Problems Table:
+sql
+CREATE TABLE problems (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    difficulty VARCHAR(20) NOT NULL,
+    
+    -- Test cases (JSON array)
+    test_cases JSONB NOT NULL,
+    
+    -- Zone (for Ecosystem Wars)
+    zone INT DEFAULT 1,
+    
+    -- Stats
+    total_attempts INT DEFAULT 0,
+    success_rate FLOAT DEFAULT 0.0,
+    
+    created_at TIMESTAMP DEFAULT NOW(),
+    
+    CONSTRAINT chk_difficulty CHECK (difficulty IN ('easy', 'medium', 'hard', 'expert')),
+    CONSTRAINT chk_zone CHECK (zone BETWEEN 1 AND 4)
+);
+
+CREATE INDEX idx_problems_difficulty ON problems(difficulty);
+CREATE INDEX idx_problems_zone ON problems(zone);
+Algorithm Executions (Performance Tracking):
+sql
+CREATE TABLE algorithm_executions (
+    id BIGSERIAL PRIMARY KEY,
+    algorithm_id INT NOT NULL REFERENCES algorithms(id) ON DELETE CASCADE,
+    battle_id INT REFERENCES battles(id) ON DELETE CASCADE,
+    
+    -- Performance
+    execution_time_ms INT NOT NULL,
+    memory_usage_mb INT NOT NULL,
+    test_cases_passed INT NOT NULL,
+    test_cases_total INT NOT NULL,
+    
+    -- Output
+    stdout TEXT,
+    stderr TEXT,
+    exit_code INT,
+    
+    -- Timestamp
+    executed_at TIMESTAMP DEFAULT NOW(),
+    
+    CONSTRAINT chk_execution_time CHECK (execution_time_ms >= 0),
+    CONSTRAINT chk_memory_usage CHECK (memory_usage_mb >= 0)
+);
+
+-- Indexes
+CREATE INDEX idx_executions_algorithm_id ON algorithm_executions(algorithm_id);
+CREATE INDEX idx_executions_battle_id ON algorithm_executions(battle_id);
+CREATE INDEX idx_executions_executed_at ON algorithm_executions(executed_at DESC);
+MIGRATION WORKFLOW (Alembic)
+Create Migration:
+bash
+# Auto-generate migration from model changes
+alembic revision --autogenerate -m "add algorithms table"
+
+# Create empty migration for manual changes
+alembic revision -m "add indexes for performance"
+Migration File Structure:
+python
+"""add algorithms table
+
+Revision ID: abc123
+Revises: def456
+Create Date: 2026-02-04 18:00:00
+
+"""
+from alembic import op
+import sqlalchemy as sa
+
+# Revision identifiers
+revision = 'abc123'
+down_revision = 'def456'
+branch_labels = None
+depends_on = None
+
+def upgrade():
+    # Create table
+    op.create_table(
+        'algorithms',
+        sa.Column('id', sa.Integer(), primary_key=True),
+        sa.Column('user_id', sa.Integer(), nullable=False),
+        sa.Column('code', sa.Text(), nullable=False),
+        sa.Column('language', sa.String(20), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
+    )
+    
+    # Add foreign key
+    op.create_foreign_key(
+        'fk_algorithms_users',
+        'algorithms', 'users',
+        ['user_id'], ['id'],
+        ondelete='CASCADE'
+    )
+    
+    # Add indexes
+    op.create_index('idx_algorithms_user_id', 'algorithms', ['user_id'])
+    op.create_index('idx_algorithms_created_at', 'algorithms', ['created_at'])
+
+def downgrade():
+    op.drop_index('idx_algorithms_created_at')
+    op.drop_index('idx_algorithms_user_id')
+    op.drop_constraint('fk_algorithms_users', 'algorithms')
+    op.drop_table('algorithms')
+Run Migrations:
+bash
+# Upgrade to latest
+alembic upgrade head
+
+# Downgrade one revision
+alembic downgrade -1
+
+# Show migration history
+alembic history
+
+# Show current version
+alembic current
+DATA INTEGRITY RULES
+Use Constraints:
+sql
+-- NOT NULL (require value)
+email VARCHAR(255) NOT NULL
+
+-- UNIQUE (prevent duplicates)
+username VARCHAR(50) UNIQUE
+
+-- CHECK (validate data)
+rating INT CHECK (rating >= 0 AND rating <= 5000)
+
+-- FOREIGN KEY (referential integrity)
+user_id INT REFERENCES users(id) ON DELETE CASCADE
+
+-- DEFAULT (set default value)
+created_at TIMESTAMP DEFAULT NOW()
+Soft Deletes vs Hard Deletes:
+sql
+-- ✅ SOFT DELETE (keep data, mark as deleted)
+ALTER TABLE algorithms ADD COLUMN deleted_at TIMESTAMP;
+
+UPDATE algorithms SET deleted_at = NOW() WHERE id = 123;
+
+-- Query only non-deleted
+SELECT * FROM algorithms WHERE deleted_at IS NULL;
+
+-- ❌ HARD DELETE (permanent removal)
+DELETE FROM algorithms WHERE id = 123;
+QUERY OPTIMIZATION
+Use EXPLAIN ANALYZE:
+sql
+-- Check query performance
+EXPLAIN ANALYZE
+SELECT u.username, COUNT(b.id) as battle_count
+FROM users u
+LEFT JOIN battles b ON u.id = b.player1_id
+WHERE u.rating > 1500
+GROUP BY u.id
+ORDER BY battle_count DESC
+LIMIT 10;
+
+-- Look for:
+-- - Seq Scan (BAD - needs index)
+-- - Index Scan (GOOD)
+-- - Execution time < 50ms (GOAL)
+Avoid N+1 Queries:
+sql
+-- ❌ BAD (N+1 queries in application code)
+SELECT * FROM battles;
+-- Then for each battle:
+SELECT * FROM users WHERE id = battle.player1_id;
+
+-- ✅ GOOD (single query with JOIN)
+SELECT b.*, u1.username as player1_name, u2.username as player2_name
+FROM battles b
+JOIN users u1 ON b.player1_id = u1.id
+JOIN users u2 ON b.player2_id = u2.id;
+JSONB OPERATIONS (For traits, metrics)
+Query JSONB:
+sql
+-- Check if key exists
+SELECT * FROM algorithms WHERE traits ? 'Cache Warrior';
+
+-- Get array length
+SELECT id, jsonb_array_length(traits) as trait_count
+FROM algorithms;
+
+-- Extract value
+SELECT id, traits->0 as first_trait FROM algorithms;
+
+-- Filter by JSON property
+SELECT * FROM battles 
+WHERE algorithm1_metrics->>'execution_time_ms' < '100';
+Index JSONB:
+sql
+-- GIN index for JSONB (enables ? operator)
+CREATE INDEX idx_algorithms_traits ON algorithms USING gin(traits);
+BACKUP & RESTORE
+Daily Backups:
+bash
+# Backup database
+pg_dump -U postgres -d algorithm_arena -F c -f backup_$(date +%Y%m%d).dump
+
+# Restore database
+pg_restore -U postgres -d algorithm_arena -c backup_20260204.dump
+Point-in-Time Recovery:
+sql
+-- Enable WAL archiving in postgresql.conf
+wal_level = replica
+archive_mode = on
+archive_command = 'cp %p /archive/%f'
+MONITORING
+Essential Queries:
+sql
+-- Slow queries (> 1 second)
+SELECT query, mean_exec_time, calls
+FROM pg_stat_statements
+WHERE mean_exec_time > 1000
+ORDER BY mean_exec_time DESC;
+
+-- Table sizes
+SELECT 
+    schemaname,
+    tablename,
+    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+
+-- Index usage
+SELECT 
+    schemaname,
+    tablename,
+    indexname,
+    idx_scan,
+    idx_tup_read
+FROM pg_stat_user_indexes
+WHERE idx_scan = 0  -- Unused indexes
+ORDER BY pg_relation_size(indexrelid) DESC;
+SEED DATA (For Testing)
+Create Seed Script:
+python
+# database/seeds/seed_data.py
+from models import User, Algorithm, Problem
+from database import SessionLocal
+
+def seed_users():
+    users = [
+        User(username="alice", email="alice@example.com", rating=1500),
+        User(username="bob", email="bob@example.com", rating=1200),
+    ]
+    session = SessionLocal()
+    session.add_all(users)
+    session.commit()
+
+def seed_problems():
+    problems = [
+        Problem(
+            title="Two Sum",
+            description="Find two numbers that add up to target",
+            difficulty="easy",
+            test_cases=[
+                {"input": , "target": 9, "output": }[1]
+            ]
+        )
+    ]
+    session = SessionLocal()
+    session.add_all(problems)
+    session.commit()
+
+if __name__ == "__main__":
+    seed_users()
+    seed_problems()
+END OF DATABASE RULES
+
+text
+
+***
+
+## **📋 RULE #4: DEVOPS AGENT (Docker + Kubernetes)**
+
+```markdown
+# DEVOPS AGENT RULES - Docker, Kubernetes, Infrastructure
+# Extends: Global Rules
+
+⚠️ **IMPORTANT: DevOps will be handled by YOU (the project owner)**
+
+This file serves as documentation and reference for infrastructure setup.
+**Cursor AI will NOT generate DevOps code.** You will implement this manually.
+
+## TECH STACK
+- **Containerization**: Docker + Docker Compose
+- **Orchestration**: Kubernetes (K8s)
+- **Cloud**: AWS (EKS) or GCP (GKE)
+- **CI/CD**: GitHub Actions
+- **Monitoring**: Prometheus + Grafana
+- **Logging**: ELK Stack (Elasticsearch, Logstash, Kibana)
+
+## DOCKER SETUP
+
+### Dockerfile (Backend):
+```dockerfile
+# backend/Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy code
+COPY . .
+
+# Expose port
+EXPOSE 8000
+
+# Run with Gunicorn
+CMD ["gunicorn", "main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
+Dockerfile (Frontend):
+text
+# frontend/Dockerfile
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+# Production image
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/package*.json ./
+
+RUN npm ci --only=production
+
+EXPOSE 3000
+
+CMD ["npm", "start"]
+Docker Compose (Local Development):
+text
+# docker-compose.yml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: algorithm_arena
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/algorithm_arena
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+
+  worker:
+    build: ./backend
+    command: celery -A worker.celery_app worker --loglevel=info
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/algorithm_arena
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+
+volumes:
+  postgres_data:
+KUBERNETES SETUP
+Namespace:
+text
+# k8s/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: algorithm-arena
+Backend Deployment:
+text
+# k8s/backend-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: algorithm-arena
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: your-registry/algorithm-arena-backend:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: db-secrets
+              key: url
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+Service (Load Balancer):
+text
+# k8s/backend-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: algorithm-arena
+spec:
+  type: LoadBalancer
+  selector:
+    app: backend
+  ports:
+  - port: 80
+    targetPort: 8000
+Horizontal Pod Autoscaler:
+text
+# k8s/backend-hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-hpa
+  namespace: algorithm-arena
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+CI/CD PIPELINE (GitHub Actions)
+Build & Deploy:
+text
+# .github/workflows/deploy.yml
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Build Backend Image
+        run: |
+          docker build -t ${{ secrets.REGISTRY }}/backend:${{ github.sha }} ./backend
+          docker push ${{ secrets.REGISTRY }}/backend:${{ github.sha }}
+      
+      - name: Build Frontend Image
+        run: |
+          docker build -t ${{ secrets.REGISTRY }}/frontend:${{ github.sha }} ./frontend
+          docker push ${{ secrets.REGISTRY }}/frontend:${{ github.sha }}
+      
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl set image deployment/backend backend=${{ secrets.REGISTRY }}/backend:${{ github.sha }} -n algorithm-arena
+          kubectl set image deployment/frontend frontend=${{ secrets.REGISTRY }}/frontend:${{ github.sha }} -n algorithm-arena
+MONITORING (Prometheus + Grafana)
+Prometheus Config:
+text
+# k8s/prometheus-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: algorithm-arena
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+    scrape_configs:
+      - job_name: 'backend'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: backend
+Metrics to Track:
+API Response Time (p95): < 200ms
+
+Error Rate: < 1%
+
+Throughput: Requests per second
+
+CPU Usage: < 70%
+
+Memory Usage: < 80%
+
+Database Connection Pool: Active connections
+
+SECURITY
+Secrets Management:
+text
+# k8s/secrets.yaml (Apply with kubectl, NEVER commit to git)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secrets
+  namespace: algorithm-arena
+type: Opaque
+data:
+  url: <base64-encoded-connection-string>
+  jwt-secret: <base64-encoded-secret>
+Network Policies:
+text
+# k8s/network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-policy
+  namespace: algorithm-arena
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: frontend
+    ports:
+    - protocol: TCP
+      port: 8000
+COST OPTIMIZATION
+Use Spot Instances:
+Run worker pods on spot instances (50-70% cheaper)
+
+Use node affinity to separate critical and non-critical workloads
+
+Auto-Scaling:
+Scale down to 1 replica during low traffic (2 AM - 6 AM)
+
+Scale up during peak hours
+
+Caching:
+Use Redis for frequently accessed data
+
+Use CDN for static assets
+
+END OF DEVOPS RULES
+
+YOU (the project owner) will handle all DevOps implementation.
+Cursor AI will focus on backend, frontend, and database code only.
+
+text
+
+***
+
+## **📋 RULE #5: API CONTRACT (OpenAPI Spec)**
+
+```markdown
+# API CONTRACT - OpenAPI 3.0 Specification
+# This is the source of truth for API endpoints
+
+```yaml
+openapi: 3.0.0
+info:
+  title: Algorithm Arena API
+  version: 1.0.0
+  description: API for real-time algorithm battles
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local development
+  - url: https://api.algorithmarena.com/api/v1
+    description: Production
+
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: Battles
+    description: Battle management
+  - name: Algorithms
+    description: Algorithm submission
+  - name: Users
+    description: User profiles
+
+paths:
+  # AUTH ENDPOINTS
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: Create new user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+              required: [username, email, password]
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          description: Username/email already exists
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login to existing account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              required: [email, password]
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+
+  # BATTLE ENDPOINTS
+  /battles:
+    get:
+      tags: [Battles]
+      summary: List battles
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, running, completed]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of battles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Battle'
+
+    post:
+      tags: [Battles]
+      summary: Create new battle
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                opponent_id:
+                  type: integer
+                algorithm_id:
+                  type: integer
+                problem_id:
+                  type: integer
+              required: [opponent_id, algorithm_id, problem_id]
+      responses:
+        '201':
+          description: Battle created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Battle'
+
+  /battles/{battle_id}:
+    get:
+      tags: [Battles]
+      summary: Get battle details
+      parameters:
+        - name: battle_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Battle details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Battle'
+        '404':
+          description: Battle not found
+
+  # ALGORITHM ENDPOINTS
+  /algorithms:
+    get:
+      tags: [Algorithms]
+      summary: List user's algorithms
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of algorithms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Algorithm'
+
+    post:
+      tags: [Algorithms]
+      summary: Submit new algorithm
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                language:
+                  type: string
+                  enum: [python, rust, javascript]
+                name:
+                  type: string
+              required: [code, language]
+      responses:
+        '201':
+          description: Algorithm submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Algorithm'
+
+  # USER ENDPOINTS
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/User'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        rating:
+          type: integer
+        battles_won:
+          type: integer
+        battles_lost:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    Algorithm:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        code:
+          type: string
+        language:
+          type: string
+        name:
+          type: string
+        battles_won:
+          type: integer
+        battles_lost:
+          type: integer
+        is_alive:
+          type: boolean
+        traits:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Battle:
+      type: object
+      properties:
+        id:
+          type: integer
+        player1_id:
+          type: integer
+        player2_id:
+          type: integer
+        algorithm1_id:
+          type: integer
+        algorithm2_id:
+          type: integer
+        status:
+          type: string
+          enum: [pending, running, completed, cancelled]
+        winner_id:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            access_token:
+              type: string
+            token_type:
+              type: string
+            user:
+              $ref: '#/components/schemas/User'
+END OF API CONTRACT

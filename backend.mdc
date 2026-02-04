@@ -1,0 +1,548 @@
+---
+alwaysApply: true
+---
+BACKEND AGENT – MASTER RULES & INTEGRATION SPEC
+CodeArena: FastAPI, Postgres, Redis, WebSockets
+The backend is a FastAPI application with async Postgres + Redis, JWT auth, REST APIs for core data, and WebSockets for real‑time battles. It must match the frontend and product specs exactly.
+
+1. Tech Stack & Structure
+Language / Framework: Python 3.11+, FastAPI.
+​
+
+Database: PostgreSQL via SQLAlchemy 2.0 (async, asyncpg driver).
+​
+
+Cache / Realtime infra: Redis 7+ for caching, matchmaking queues, battle state, and pub/sub.
+​
+
+Auth: JWT (HS256) with bcrypt password hashing.
+​
+
+Execution: separate worker/sandbox (Wasm or Docker) reached asynchronously via queue; API never runs untrusted code inline.
+​
+
+Filesystem (conceptual):
+
+app/main.py – FastAPI app, middleware, health, router registration.
+​
+
+app/core/ – database, redis, security, config, dependencies.
+​
+
+app/models/ – SQLAlchemy models: User, Algorithm/Organism, Problem/Challenge, Battle/Match, Submission, etc.
+​
+
+app/schemas/ – Pydantic schemas for all REST endpoints.
+​
+
+app/services/ – BattleManager, Matchmaker, ChallengeService, UserService, SubmissionService, etc.
+​
+
+app/api/v1/ – route modules: auth.py, users.py, algorithms.py, battles.py, problems.py, matchmaking.py, submissions.py, leaderboard.py.
+
+app/workers/ – background workers (matchmaker loop, code_executor queue consumer).
+​
+
+All new code must plug into this structure; no new random folders.
+
+2. Core Infrastructure Wiring
+2.1 Database Layer
+Connection URL built as postgresql+asyncpg://USER:PASS@HOST:PORT/DBNAME.
+​
+
+create_async_engine with:
+
+pool_size=10, max_overflow=20, pool_pre_ping=True, pool_recycle=3600.
+​
+
+AsyncSessionLocal via sessionmaker, expire_on_commit=False.
+​
+
+get_db() dependency yields an AsyncSession and:
+
+commits on success, rollbacks on exception, always closes.
+​
+
+Usage in endpoints:
+
+python
+@router.get("/users")
+async def list_users(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User))
+    return result.scalars().all()
+All DB access from routes must use get_db() and never create ad‑hoc engines.
+
+2.2 Redis Layer
+Global redis_client = redis.from_url(REDIS_URL, decode_responses=True, max_connections=50, ...).
+​
+
+get_redis() dependency yields this client.
+​
+
+Use Redis for:
+
+Matchmaking queues (sorted sets).
+
+Leaderboards (sorted sets).
+​
+
+Battle state snapshots and tick deltas.
+​
+
+Pub/sub channels for notifying WebSockets and workers.
+​
+
+3. Authentication & Security
+Passwords:
+
+Hashed with bcrypt via CryptContext (rounds=12).
+​
+
+JWT:
+
+HS256, payload has sub (user id), exp, iat, type="access".
+​
+
+Access token lifetime ~30 min, refresh token ~7 days.
+​
+
+verify_token() decodes and validates JWT; raises 401 for invalid/expired.
+​
+
+Dependencies:
+
+python
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+) -> User:
+    payload = verify_token(token)
+    user_id = payload.get("sub")
+    # load user, ensure active, else raise HTTPException(401/403)
+All protected routes must depend on get_current_user; admin actions also depend on require_admin().
+​
+
+Frontend integration:
+
+Frontend stores tokens (currently in localStorage) and sends them as Authorization: Bearer <token> headers via Axios interceptors.
+​
+
+401 → frontend attempts refresh token flow, then redirects to /login on failure.
+​
+
+4. High‑Level API Surface
+Backend must provide:
+
+Auth: signup, login, logout, refresh, current user.
+
+Users: get profile, stats, settings.
+
+Problems/Challenges: list, detail, metadata for coding page.
+
+Algorithms / Organisms: CRUD for algorithm entities, stats, traits, death count.
+
+Matchmaking & Battles:
+
+Join quick match queue.
+
+Monitor queue position/estimated wait.
+
+Create battle and connect via WebSocket.
+
+Get battle history / battle detail.
+
+Submissions & Code Execution:
+
+run for sample tests (fast feedback).
+
+submit for full evaluation and scoring.
+
+Leaderboards: user ELO, streaks, algorithm rankings.
+
+All routes must respond with consistent JSON:
+
+json
+{
+  "success": true,
+  "data": { ... },
+  "message": "Optional human-readable message"
+}
+and on error:
+
+json
+{
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human readable",
+    "details": { ...optional... }
+  }
+}
+5. Detailed Endpoint Logic & Frontend Wiring
+Below is what each major endpoint does and how the frontend calls it.
+
+5.1 Auth Routes (/api/v1/auth/...)
+POST /auth/signup
+Input: username, email, password.
+Logic:
+
+Validate uniqueness, hash password, create user.
+​
+
+Issue access & refresh tokens and return user profile.
+​
+
+Frontend: authService.signup() then stores tokens and user in context.
+​
+
+POST /auth/login
+Input: email/username, password.
+Logic:
+
+Verify password, issue tokens, return user.
+​
+
+Frontend: authService.login(), update AuthContext, redirect to /dashboard.
+​
+
+GET /auth/me
+
+Returns current user profile (UserProfile + UserStats).
+
+Used on app load to refresh auth state.
+​
+
+POST /auth/refresh
+
+Validate refresh token, issue new access token.
+​
+
+Frontend: Axios response interceptor calls this on 401, retries original request.
+​
+
+5.2 Problems (/api/v1/challenges or /problems)
+GET /challenges
+Query params: difficulty, tag, page, page_size.
+
+Logic:
+
+Use ChallengeService.list_challenges() with Redis caching.
+​
+
+Return paginated problem list for Problems page.
+
+GET /challenges/{id}
+Logic:
+
+ChallengeService.get_challenge(id) with cache.
+​
+
+Includes: title, description, examples, visible test cases, starter code per language, difficulty, metadata.
+
+Frontend: ProblemDetail page loads this to show left panel and initial editor code.
+​
+
+5.3 Algorithms / Organisms (/api/v1/algorithms)
+GET /algorithms (user’s algorithms)
+
+Uses get_current_user and returns all living algorithms belonging to the user.
+
+Fields: id, name, language, stats, traits, generation, is_alive, death_count.
+
+POST /algorithms
+Input: Pydantic model AlgorithmCreate (code, language, optional names/metadata).
+
+Logic:
+
+Validate input, sanitize code (forbidden imports, etc.).
+​
+
+Insert into algorithms table with default stats and generation=1.
+​
+
+This is used when user “births” a new organism.
+
+GET /algorithms/{id}
+
+Detail view for showing organism profile and history (later used in dashboard/algorithms page).
+​
+
+Backend must enforce permadeath:
+
+Before queueing an algorithm for battle or evolution, check is_alive and death_count < 3; otherwise reject with ERROR_CODE = "ALGORITHM_DEAD".
+
+5.4 Matchmaking & Quick Match (/api/v1/matchmaking / /battles/queue)
+Matchmaker service already exists but is not fully wired; backend must integrate it.
+​
+
+POST /matchmaking/queue/join
+Input: mode (e.g., "ranked_1v1"), difficulty, language, algorithm_id.
+
+Logic:
+
+Validate:
+
+User is authenticated.
+​
+
+Algorithm belongs to user, alive, correct language.
+
+Get user ELO from DB.
+​
+
+MatchmakerService.add_to_queue(user_id, difficulty, language, elo):
+
+Adds to Redis ZSET queue:{difficulty}:{language} with ELO as score.
+​
+
+Optionally returns position and queue size.
+​
+
+Return queue info to frontend.
+
+Frontend:
+
+Quick Match button on Dashboard or Problems page calls this endpoint.
+​
+
+UI shows “In queue – position X of Y, est wait ~Ns”.
+
+POST /matchmaking/queue/leave
+
+Uses MatchmakerService.remove_from_queue(user_id) to remove from all relevant queues.
+​
+
+Background process:
+
+Worker app/workers/matchmaker.py runs process_matchmaking() in a loop:
+
+For each queue key:
+
+Load queued players (sorted by ELO).
+​
+
+Call find_best_match to pair players by ELO difference & wait time.
+​
+
+When a match pair is found:
+
+Create a battle record in DB.
+​
+
+Initialize BattleManager state in Redis.
+​
+
+Publish notification on Redis channel match:{user_id}.
+​
+
+Frontend:
+
+Dashboard or “queue waiting” view opens a WebSocket / SSE or polls API:
+
+Option A: WebSocket on ws://.../matchmaking subscribing to match:{user_id} via backend.
+
+Option B: Poll /matchmaking/status until battle is created.
+
+On notification, frontend navigates to /battles/{battle_id}.
+
+5.5 Battles (/api/v1/battles + WebSocket /ws/battles/{id})
+REST endpoints:
+
+GET /battles
+
+Filter by status, pagination; used for Battles history page.
+
+GET /battles/{battle_id}
+
+Returns summary of one battle: players, problem, scores, timing, pointers to submissions and replay data.
+
+WebSocket endpoint:
+
+@router.websocket("/ws/battles/{battle_id}")
+Logic:
+
+Authenticate user via JWT in query/header/cookie.
+
+Verify user is participant or authorized spectator.
+
+Use BattleManager to either:
+
+create battle state (if first join), or
+
+attach this socket to an existing battle room.
+​
+
+Start the tick loop for this battle if not already started.
+​
+
+Receive messages:
+
+CODE_UPDATE – pass to BattleManager.update_player_code(...).
+​
+
+RUN_TESTS – queue execution task for sample tests.
+​
+
+SUBMIT – queue full execution, mark player as submitted.
+​
+
+Send messages (deltas) from BattleManager back to connected clients:
+
+Timer updates, test progress, submission status, winner/loser, etc.
+​
+
+Frontend integration:
+
+Coding arena page (ProblemDetail when in match context) opens WebSocket to /ws/battles/{id} once battle is assigned.
+​
+
+Local Monaco editor still controls the text, but:
+
+Selected ops (e.g., run/submit) are sent via WebSocket messages rather than plain REST when inside a live battle.
+
+Opponent’s cursor/test progress are visualized using deltas from server.
+
+5.6 Submissions & Execution (/api/v1/submissions/run, /submit)
+POST /submissions/run (sample tests)
+
+Input: challenge_id, code, language.
+​
+
+Logic:
+
+Validate code and language via SubmissionCreate schema (sanitizes language and ensures length constraints).
+​
+
+Create a submission record with status PENDING.
+​
+
+Push job to execution queue (Redis list / SQS style) with:
+
+submission id, code, language, test_cases (sample only), resource limits.
+​
+
+Return a submission id and maybe initial “queued” status to frontend.
+
+POST /submissions/submit (full evaluation)
+
+Same as run but uses full test suite (including hidden tests) and marks battle logic when done.
+
+Execution worker (app/workers/code_executor.py):
+
+Listens to code_execution_tasks queue in Redis.
+​
+
+For each job:
+
+Spawns sandbox (Docker or Wasm host), runs code with timeout and memory cap.
+​
+
+Collects results: per test case pass/fail, stdout/stderr, runtime, memory.
+​
+
+Updates submission record with result summary (ACCEPTED, WRONG_ANSWER, TIME_LIMIT, etc.) and metrics.
+​
+
+If battle‑linked:
+
+Notifies BattleManager or pushes pub/sub to WebSocket channel.
+​
+
+If just practice:
+
+Optionally notifies WebSocket or stores for GET /submissions/{id} polling.
+
+Frontend:
+
+CodeEditorPanel:
+
+On “Run Code”: calls /submissions/run, shows spinner, then polls /submissions/{id} or waits for WebSocket update to render test results.
+​
+
+On “Submit”: similar but triggers “accepted/failed” states and roasts/replays.
+​
+
+6. Services & Business Logic
+6.1 BattleManager (authoritative state)
+Maintains:
+
+In‑memory map of active battles + state.
+
+Background tick loop at 20 Hz (every 50 ms) per active battle.
+​
+
+Each tick:
+
+Decrements timer, checks win conditions and timeouts.
+​
+
+Saves updated state to Redis.
+​
+
+Computes minimal deltas between previous and new state and broadcasts over WebSocket channels to all clients in that battle.
+​
+
+Delta example:
+
+json
+{
+  "type": "STATE_DELTA",
+  "tick": 1234,
+  "timer_remaining_seconds": 672.5,
+  "players": {
+    "player1_id": { "tests_passed": 5 },
+    "player2_id": { "tests_passed": 3 }
+  }
+}
+6.2 MatchmakerService
+Uses Redis ZSETs queue:{difficulty}:{language} with ELO as score; pairs nearest ELO players first, with relax rules if wait time > 2 minutes.
+​
+
+Creates matches in DB and cleans them from queues; interacts with WebSockets via pub/sub.
+​
+
+6.3 ChallengeService
+Wraps DB + Redis caching for listing and retrieving problems.
+​
+
+Used by REST routes instead of raw DB queries, to centralize caching and invalidation.
+​
+
+7. Frontend–Backend Contract Summary
+Base URL: backend exposes HTTP on http://localhost:8001 (dev) and paths like /api/v1/...; frontend uses VITE_API_BASE_URL + ENDPOINTS config (/api/v1/auth/login, /api/v1/challenges, etc.).
+​
+
+Auth:
+
+Bearer token in headers, refresh on 401, redirect to /login if refresh fails.
+
+Coding flow:
+
+Frontend calls GET /challenges/:id to populate problem + starter code.
+
+On “Run Code”, frontend calls /submissions/run and shows returned results.
+
+On “Submit”, calls /submissions/submit, then:
+
+If solo: show accepted/failed and store as history.
+
+If in battle: uses WebSocket updates to show who won and update scoreboard.
+​
+
+Battles:
+
+REST for history & detail, WebSocket for real‑time.
+
+Matchmaking:
+
+REST to join/leave queue; either WebSocket or polling to detect created battle.
+
+8. Backend Non‑Goals
+Do not include cloud‑provider‑specific infra code (Terraform, Helm) here; DevOps is handled separately.
+​
+
+Do not execute untrusted user code directly in FastAPI request handlers; always push to the execution worker queue.
+​
+
+Do not expose raw internal models to frontend; always wrap with Pydantic schemas that match the agreed response formats.
+

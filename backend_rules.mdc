@@ -1,0 +1,1060 @@
+---
+alwaysApply: true
+---
+📋 RULE #1: BACKEND AGENT (FastAPI + Celery + Wasm)
+text
+# BACKEND AGENT RULES - FastAPI, Celery, Wasm Execution
+# Extends: Global Rules
+
+## TECH STACK
+- **Framework**: FastAPI 0.104+
+- **ORM**: SQLAlchemy 2.0 (async)
+- **Validation**: Pydantic v2
+- **Task Queue**: Celery + Redis
+- **Code Execution**: Wasmtime (Wasm runtime)
+- **Database**: PostgreSQL 15+
+- **Cache**: Redis 7+
+
+## API STRUCTURE
+
+### Folder Layout (Enforced):
+backend/
+├── api/
+│ ├── v1/
+│ │ ├── routes/
+│ │ │ ├── auth.py # Login, signup, JWT
+│ │ │ ├── battles.py # Battle CRUD
+│ │ │ ├── algorithms.py # Algorithm submission
+│ │ │ └── users.py # User profiles
+│ │ └── dependencies.py # Route dependencies
+│ └── main.py # FastAPI app
+├── worker/
+│ ├── tasks/
+│ │ ├── battle_execution.py
+│ │ └── evolution.py
+│ └── celery_app.py
+├── models/ # SQLAlchemy models
+├── schemas/ # Pydantic schemas
+├── services/ # Business logic
+├── utils/
+│ ├── wasm_executor.py
+│ └── jwt.py
+└── tests/
+
+text
+
+## API ENDPOINT RULES
+
+### Naming Convention:
+```python
+# ✅ GOOD - RESTful, plural nouns
+POST   /api/v1/battles
+GET    /api/v1/battles/{battle_id}
+GET    /api/v1/users/{user_id}/algorithms
+DELETE /api/v1/algorithms/{algorithm_id}
+
+# ❌ BAD - verbs, inconsistent
+POST   /api/v1/create-battle
+GET    /api/v1/getBattle
+GET    /api/v1/user-algorithms
+Response Format (Standardized):
+python
+# Success Response
+{
+  "success": true,
+  "data": { ... },
+  "message": "Battle created successfully"
+}
+
+# Error Response
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid algorithm code",
+    "details": {
+      "field": "code",
+      "reason": "Syntax error at line 10"
+    }
+  }
+}
+Status Codes (Use Correctly):
+200: OK (GET, PUT success)
+
+201: Created (POST success)
+
+204: No Content (DELETE success)
+
+400: Bad Request (validation failed)
+
+401: Unauthorized (no/invalid token)
+
+403: Forbidden (valid token, insufficient permissions)
+
+404: Not Found (resource doesn't exist)
+
+409: Conflict (duplicate entry)
+
+422: Unprocessable Entity (Pydantic validation)
+
+500: Internal Server Error (unhandled exception)
+
+PYDANTIC SCHEMAS
+Schema Naming:
+python
+# Input schemas (request bodies)
+class BattleCreate(BaseModel):
+    opponent_id: int
+    problem_id: int
+
+# Output schemas (responses)
+class BattleResponse(BaseModel):
+    id: int
+    status: Literal["pending", "running", "completed"]
+    created_at: datetime
+
+# Update schemas (partial updates)
+class BattleUpdate(BaseModel):
+    status: Optional[Literal["cancelled"]] = None
+Required Validations:
+python
+from pydantic import BaseModel, Field, validator
+
+class AlgorithmCreate(BaseModel):
+    code: str = Field(..., min_length=10, max_length=10000)
+    language: Literal["python", "rust", "javascript"]
+    
+    @validator('code')
+    def validate_code_syntax(cls, v, values):
+        # Basic syntax check
+        if 'import os' in v or 'import sys' in v:
+            raise ValueError("System imports not allowed")
+        return v
+
+    class Config:
+        # Generate schema for docs
+        schema_extra = {
+            "example": {
+                "code": "def solution(arr):\n    return sorted(arr)",
+                "language": "python"
+            }
+        }
+DATABASE MODELS (SQLAlchemy)
+Model Structure:
+python
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+from datetime import datetime
+
+class Battle(Base):
+    __tablename__ = "battles"
+    
+    # Primary Key
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Foreign Keys (ALWAYS indexed)
+    player1_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    player2_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=False)
+    
+    # Status (indexed for queries)
+    status = Column(String(20), index=True, default="pending")
+    
+    # Timestamps (ALWAYS included)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    player1 = relationship("User", foreign_keys=[player1_id])
+    player2 = relationship("User", foreign_keys=[player2_id])
+Query Optimization Rules:
+python
+# ❌ BAD - N+1 queries
+battles = session.query(Battle).all()
+for battle in battles:
+    print(battle.player1.username)  # Each access = 1 query!
+
+# ✅ GOOD - Eager loading
+from sqlalchemy.orm import joinedload
+
+battles = session.query(Battle)\
+    .options(joinedload(Battle.player1))\
+    .options(joinedload(Battle.player2))\
+    .all()
+ASYNC DATABASE OPERATIONS
+Session Management:
+python
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from contextlib import asynccontextmanager
+
+# Dependency injection
+async def get_db() -> AsyncSession:
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
+
+# Usage in routes
+@router.post("/battles")
+async def create_battle(
+    data: BattleCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    battle = Battle(**data.dict(), player1_id=current_user.id)
+    db.add(battle)
+    await db.commit()
+    await db.refresh(battle)
+    return {"success": True, "data": battle}
+WASM EXECUTION ENGINE
+Security Rules (CRITICAL):
+python
+from wasmtime import Store, Module, Instance, Engine
+import resource
+
+class WasmExecutor:
+    def __init__(self):
+        self.engine = Engine()
+        
+    async def execute(self, wasm_bytes: bytes, input_data: dict) -> dict:
+        """
+        Execute Wasm code with strict limits.
+        
+        Security measures:
+        1. 5-second timeout
+        2. 256MB memory limit
+        3. No filesystem access
+        4. No network access
+        5. CPU limit (1 core)
+        """
+        store = Store(self.engine)
+        
+        # Set memory limit
+        store.set_limits(
+            memory_size=256 * 1024 * 1024,  # 256MB
+            table_elements=1000,
+            instances=1
+        )
+        
+        try:
+            # Load module
+            module = Module(self.engine, wasm_bytes)
+            instance = Instance(store, module, [])
+            
+            # Execute with timeout
+            result = await asyncio.wait_for(
+                self._run_wasm(instance, input_data),
+                timeout=5.0
+            )
+            
+            return {"success": True, "result": result}
+            
+        except asyncio.TimeoutError:
+            return {"success": False, "error": "TIMEOUT"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+Forbidden Operations in User Code:
+File I/O: No open(), read(), write()
+
+Network: No socket, requests, urllib
+
+System: No os, sys, subprocess
+
+Eval: No eval(), exec(), compile()
+
+CELERY TASKS
+Task Structure:
+python
+from celery import Task
+from worker.celery_app import celery_app
+
+@celery_app.task(bind=True, max_retries=3)
+def run_battle(self, battle_id: int):
+    """
+    Execute battle between two algorithms.
+    
+    Args:
+        battle_id: Battle database ID
+        
+    Returns:
+        dict: Battle results
+    """
+    try:
+        # Fetch battle from DB
+        battle = get_battle(battle_id)
+        
+        # Execute both algorithms
+        result1 = execute_algorithm(battle.algorithm1_id)
+        result2 = execute_algorithm(battle.algorithm2_id)
+        
+        # Determine winner
+        winner = determine_winner(result1, result2)
+        
+        # Update database
+        update_battle(battle_id, winner=winner)
+        
+        return {"battle_id": battle_id, "winner": winner}
+        
+    except Exception as e:
+        # Retry with exponential backoff
+        raise self.retry(exc=e, countdown=2 ** self.request.retries)
+Task Naming:
+python
+# ✅ GOOD - Verb + Noun
+run_battle(battle_id)
+evolve_algorithm(algorithm_id, generations)
+calculate_leaderboard()
+
+# ❌ BAD - Vague
+process_stuff(id)
+do_thing(data)
+AUTHENTICATION (JWT)
+Token Structure:
+python
+from datetime import datetime, timedelta
+from jose import JWTError, jwt
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+# Dependency for protected routes
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: int = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(401, "Invalid token")
+    except JWTError:
+        raise HTTPException(401, "Invalid token")
+    
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(404, "User not found")
+    return user
+RATE LIMITING
+Implementation:
+python
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
+
+@router.post("/battles")
+@limiter.limit("10/minute")  # 10 requests per minute
+async def create_battle(...):
+    pass
+
+@router.get("/battles")
+@limiter.limit("100/minute")  # Higher limit for reads
+async def list_battles(...):
+    pass
+ERROR HANDLING
+Global Exception Handler:
+python
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+app = FastAPI()
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    # Log error
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    
+    # Return user-friendly error
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "An unexpected error occurred",
+                "request_id": request.state.request_id
+            }
+        }
+    )
+LOGGING
+Structured Logging:
+python
+import logging
+import json
+
+class JSONFormatter(logging.Formatter):
+    def format(self, record):
+        log_data = {
+            "timestamp": self.formatTime(record),
+            "level": record.levelname,
+            "service": "backend-api",
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+        }
+        if record.exc_info:
+            log_data["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_data)
+
+# Usage
+logger = logging.getLogger(__name__)
+logger.info("Battle created", extra={"battle_id": 123, "user_id": 456})
+TESTING
+Test Structure:
+python
+import pytest
+from httpx import AsyncClient
+from main import app
+
+@pytest.mark.asyncio
+async def test_create_battle():
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        # Create test user
+        token = await create_test_user()
+        
+        # Test battle creation
+        response = await client.post(
+            "/api/v1/battles",
+            json={"opponent_id": 2, "problem_id": 1},
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        assert response.status_code == 201
+        data = response.json()
+        assert data["success"] is True
+        assert "id" in data["data"]
+PERFORMANCE RULES
+Database Connection Pool:
+python
+from sqlalchemy.ext.asyncio import create_async_engine
+
+engine = create_async_engine(
+    DATABASE_URL,
+    pool_size=20,          # Max 20 connections
+    max_overflow=10,       # Allow 10 overflow
+    pool_pre_ping=True,    # Verify connection before use
+    pool_recycle=3600,     # Recycle after 1 hour
+)
+Caching Strategy:
+python
+from redis import asyncio as aioredis
+import json
+
+redis = aioredis.from_url("redis://localhost")
+
+async def get_leaderboard():
+    # Try cache first
+    cached = await redis.get("leaderboard")
+    if cached:
+        return json.loads(cached)
+    
+    # Cache miss - query database
+    leaderboard = await query_leaderboard()
+    
+    # Cache for 5 minutes
+    await redis.setex("leaderboard", 300, json.dumps(leaderboard))
+    
+    return leaderboard
+WEBSOCKET RULES
+Real-Time Battle Updates:
+python
+from fastapi import WebSocket
+
+@router.websocket("/ws/battles/{battle_id}")
+async def battle_websocket(websocket: WebSocket, battle_id: int):
+    await websocket.accept()
+    
+    try:
+        # Subscribe to battle events
+        pubsub = redis.pubsub()
+        await pubsub.subscribe(f"battle:{battle_id}")
+        
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                await websocket.send_json(json.loads(message["data"]))
+                
+    except WebSocketDisconnect:
+        await pubsub.unsubscribe(f"battle:{battle_id}")
+END OF BACKEND RULES
+
+text
+
+***
+
+## **📋 RULE #2: FRONTEND AGENT (Next.js + Konva + React)**
+
+```markdown
+# FRONTEND AGENT RULES - Next.js, Konva, React
+# Extends: Global Rules
+
+## TECH STACK
+- **Framework**: Next.js 14+ (App Router)
+- **UI Library**: React 18+
+- **Canvas**: Konva.js + react-konva
+- **State**: Zustand 4+
+- **Styling**: Tailwind CSS 3+
+- **Components**: shadcn/ui
+- **TypeScript**: Strict mode
+
+## FOLDER STRUCTURE (Enforced):
+frontend/
+├── app/
+│ ├── (auth)/
+│ │ ├── login/
+│ │ └── signup/
+│ ├── (dashboard)/
+│ │ ├── battles/
+│ │ ├── algorithms/
+│ │ └── profile/
+│ ├── layout.tsx
+│ └── page.tsx
+├── components/
+│ ├── ui/ # shadcn components
+│ ├── canvas/
+│ │ ├── BattleCanvas.tsx
+│ │ ├── NeuralNetwork.tsx
+│ │ └── EvolutionTree.tsx
+│ ├── forms/
+│ └── layouts/
+├── lib/
+│ ├── api.ts # API client
+│ ├── utils.ts
+│ └── constants.ts
+├── hooks/
+│ ├── useBattle.ts
+│ ├── useWebSocket.ts
+│ └── useAuth.ts
+├── stores/
+│ ├── authStore.ts
+│ ├── battleStore.ts
+│ └── uiStore.ts
+└── types/
+└── index.ts
+
+text
+
+## COMPONENT RULES
+
+### File Naming:
+- **Components**: PascalCase (`BattleCard.tsx`)
+- **Hooks**: camelCase with "use" prefix (`useBattle.ts`)
+- **Utilities**: camelCase (`formatDate.ts`)
+- **Types**: camelCase (`types.ts`)
+
+### Component Structure:
+```typescript
+// ✅ GOOD - Organized structure
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { useBattle } from '@/hooks/useBattle';
+
+interface BattleCardProps {
+  battleId: string;
+  onSelect?: (id: string) => void;
+}
+
+export function BattleCard({ battleId, onSelect }: BattleCardProps) {
+  // 1. Hooks
+  const { battle, loading } = useBattle(battleId);
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  // 2. Effects
+  useEffect(() => {
+    // Fetch battle details
+  }, [battleId]);
+  
+  // 3. Event handlers
+  const handleClick = () => {
+    setIsExpanded(!isExpanded);
+    onSelect?.(battleId);
+  };
+  
+  // 4. Early returns
+  if (loading) return <Skeleton />;
+  if (!battle) return <ErrorState />;
+  
+  // 5. Render
+  return (
+    <div className="battle-card">
+      <h3>{battle.name}</h3>
+      <Button onClick={handleClick}>View Details</Button>
+    </div>
+  );
+}
+Props Validation:
+typescript
+// ✅ GOOD - Interface with JSDoc
+/**
+ * Props for BattleCanvas component
+ */
+interface BattleCanvasProps {
+  /** Battle ID to render */
+  battleId: string;
+  /** Width of canvas in pixels */
+  width: number;
+  /** Height of canvas in pixels */
+  height: number;
+  /** Callback when battle completes */
+  onComplete?: (winner: string) => void;
+}
+
+// ❌ BAD - Any or loose types
+interface BadProps {
+  data: any;  // Never use any!
+  config?: object;  // Too vague
+}
+STATE MANAGEMENT (Zustand)
+Store Structure:
+typescript
+import { create } from 'zustand';
+
+interface BattleState {
+  // State
+  battles: Battle[];
+  currentBattle: Battle | null;
+  loading: boolean;
+  
+  // Actions
+  fetchBattles: () => Promise<void>;
+  selectBattle: (id: string) => void;
+  clearBattle: () => void;
+}
+
+export const useBattleStore = create<BattleState>((set, get) => ({
+  // Initial state
+  battles: [],
+  currentBattle: null,
+  loading: false,
+  
+  // Actions
+  fetchBattles: async () => {
+    set({ loading: true });
+    try {
+      const battles = await api.getBattles();
+      set({ battles, loading: false });
+    } catch (error) {
+      set({ loading: false });
+      throw error;
+    }
+  },
+  
+  selectBattle: (id) => {
+    const battle = get().battles.find(b => b.id === id);
+    set({ currentBattle: battle });
+  },
+  
+  clearBattle: () => set({ currentBattle: null }),
+}));
+API CLIENT
+Centralized API Layer:
+typescript
+// lib/api.ts
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Request interceptor (add auth token)
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Response interceptor (handle errors)
+api.interceptors.response.use(
+  (response) => response.data,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Redirect to login
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Type-safe API methods
+export const apiClient = {
+  battles: {
+    list: () => api.get<Battle[]>('/api/v1/battles'),
+    get: (id: string) => api.get<Battle>(`/api/v1/battles/${id}`),
+    create: (data: BattleCreate) => api.post<Battle>('/api/v1/battles', data),
+  },
+  algorithms: {
+    list: () => api.get<Algorithm[]>('/api/v1/algorithms'),
+    submit: (data: AlgorithmCreate) => api.post('/api/v1/algorithms', data),
+  },
+};
+WEBSOCKET HOOK
+Real-Time Updates:
+typescript
+import { useEffect, useState } from 'react';
+
+interface UseWebSocketOptions {
+  url: string;
+  onMessage?: (data: any) => void;
+  onError?: (error: Event) => void;
+}
+
+export function useWebSocket({ url, onMessage, onError }: UseWebSocketOptions) {
+  const [socket, setSocket] = useState<WebSocket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  
+  useEffect(() => {
+    const ws = new WebSocket(url);
+    
+    ws.onopen = () => {
+      setIsConnected(true);
+      console.log('WebSocket connected');
+    };
+    
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      onMessage?.(data);
+    };
+    
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      onError?.(error);
+    };
+    
+    ws.onclose = () => {
+      setIsConnected(false);
+      console.log('WebSocket disconnected');
+    };
+    
+    setSocket(ws);
+    
+    // Cleanup
+    return () => {
+      ws.close();
+    };
+  }, [url]);
+  
+  const send = (data: any) => {
+    if (socket && isConnected) {
+      socket.send(JSON.stringify(data));
+    }
+  };
+  
+  return { socket, isConnected, send };
+}
+KONVA CANVAS RULES
+Battle Canvas Component:
+typescript
+import { Stage, Layer, Circle, Line } from 'react-konva';
+
+interface BattleCanvasProps {
+  width: number;
+  height: number;
+  algorithm1: Algorithm;
+  algorithm2: Algorithm;
+}
+
+export function BattleCanvas({ width, height, algorithm1, algorithm2 }: BattleCanvasProps) {
+  const [nodes, setNodes] = useState<Node[]>([]);
+  
+  useEffect(() => {
+    // Animate neural network
+    const interval = setInterval(() => {
+      setNodes(prev => updateNodePositions(prev));
+    }, 16); // 60 FPS
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  return (
+    <Stage width={width} height={height}>
+      <Layer>
+        {/* Neural network visualization */}
+        {nodes.map((node, i) => (
+          <Circle
+            key={i}
+            x={node.x}
+            y={node.y}
+            radius={10}
+            fill={node.active ? '#00ff00' : '#333'}
+            shadowBlur={node.active ? 20 : 0}
+          />
+        ))}
+        
+        {/* Connections */}
+        {connections.map((conn, i) => (
+          <Line
+            key={i}
+            points={[conn.x1, conn.y1, conn.x2, conn.y2]}
+            stroke="#666"
+            strokeWidth={2}
+            opacity={conn.strength}
+          />
+        ))}
+      </Layer>
+    </Stage>
+  );
+}
+Canvas Performance:
+Use useMemo for expensive calculations
+
+Limit re-renders: Only update nodes that changed
+
+Batch updates: Use requestAnimationFrame
+
+Destroy on unmount: Clean up Konva objects
+
+typescript
+// ✅ GOOD - Optimized rendering
+const nodes = useMemo(() => {
+  return generateNodes(algorithm);
+}, [algorithm.id]); // Only recalculate if ID changes
+
+// ❌ BAD - Re-renders every frame
+const nodes = generateNodes(algorithm);
+FORM HANDLING
+Use React Hook Form:
+typescript
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+const algorithmSchema = z.object({
+  code: z.string().min(10).max(10000),
+  language: z.enum(['python', 'rust', 'javascript']),
+});
+
+type AlgorithmForm = z.infer<typeof algorithmSchema>;
+
+export function AlgorithmSubmitForm() {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<AlgorithmForm>({
+    resolver: zodResolver(algorithmSchema),
+  });
+  
+  const onSubmit = async (data: AlgorithmForm) => {
+    await apiClient.algorithms.submit(data);
+  };
+  
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <textarea {...register('code')} />
+      {errors.code && <span>{errors.code.message}</span>}
+      
+      <select {...register('language')}>
+        <option value="python">Python</option>
+        <option value="rust">Rust</option>
+      </select>
+      
+      <button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? 'Submitting...' : 'Submit'}
+      </button>
+    </form>
+  );
+}
+TAILWIND CSS RULES
+Class Organization:
+typescript
+// ✅ GOOD - Grouped by category
+<div className="
+  // Layout
+  flex items-center justify-between gap-4
+  // Sizing
+  w-full h-20 p-4
+  // Colors & Effects
+  bg-gray-900 text-white rounded-lg shadow-xl
+  // States
+  hover:bg-gray-800 active:scale-95
+  // Responsive
+  md:w-1/2 lg:p-6
+">
+
+// ❌ BAD - Random order
+<div className="text-white w-full bg-gray-900 hover:bg-gray-800 flex p-4">
+Custom Utilities:
+typescript
+// tailwind.config.js
+module.exports = {
+  theme: {
+    extend: {
+      colors: {
+        'neural-blue': '#00D9FF',
+        'neural-pink': '#FF006E',
+      },
+      animation: {
+        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'glow': 'glow 2s ease-in-out infinite',
+      },
+    },
+  },
+};
+LOADING STATES
+Skeleton Components:
+typescript
+export function BattleCardSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="h-6 bg-gray-700 rounded w-3/4 mb-2" />
+      <div className="h-4 bg-gray-700 rounded w-1/2" />
+    </div>
+  );
+}
+
+// Usage
+export function BattleList() {
+  const { battles, loading } = useBattles();
+  
+  if (loading) {
+    return (
+      <>
+        <BattleCardSkeleton />
+        <BattleCardSkeleton />
+        <BattleCardSkeleton />
+      </>
+    );
+  }
+  
+  return battles.map(battle => <BattleCard key={battle.id} {...battle} />);
+}
+ERROR BOUNDARIES
+Global Error Catcher:
+typescript
+'use client';
+
+import { Component, ReactNode } from 'react';
+
+interface Props {
+  children: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  error?: Error;
+}
+
+export class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+  
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('Error caught:', error, errorInfo);
+    // Send to error tracking service
+  }
+  
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="error-container">
+          <h2>Something went wrong</h2>
+          <p>{this.state.error?.message}</p>
+          <button onClick={() => window.location.reload()}>
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+    
+    return this.props.children;
+  }
+}
+ACCESSIBILITY
+ARIA Labels:
+typescript
+// ✅ GOOD - Accessible
+<button
+  aria-label="Start battle"
+  aria-pressed={isActive}
+  onClick={handleStart}
+>
+  <PlayIcon />
+</button>
+
+// ❌ BAD - No context for screen readers
+<button onClick={handleStart}>
+  <PlayIcon />
+</button>
+Keyboard Navigation:
+typescript
+const handleKeyDown = (e: React.KeyboardEvent) => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    handleSelect();
+  }
+};
+
+<div
+  role="button"
+  tabIndex={0}
+  onKeyDown={handleKeyDown}
+  onClick={handleSelect}
+>
+  Select Battle
+</div>
+PERFORMANCE OPTIMIZATION
+Code Splitting:
+typescript
+// ✅ GOOD - Lazy load heavy components
+import dynamic from 'next/dynamic';
+
+const BattleCanvas = dynamic(() => import('@/components/canvas/BattleCanvas'), {
+  loading: () => <CanvasSkeleton />,
+  ssr: false, // Don't render on server
+});
+Memoization:
+typescript
+import { memo, useMemo, useCallback } from 'react';
+
+// Prevent re-renders if props unchanged
+export const BattleCard = memo(({ battle }: BattleCardProps) => {
+  // Expensive calculation
+  const stats = useMemo(() => {
+    return calculateBattleStats(battle);
+  }, [battle.id]);
+  
+  // Stable function reference
+  const handleClick = useCallback(() => {
+    console.log('Battle clicked:', battle.id);
+  }, [battle.id]);
+  
+  return <div onClick={handleClick}>{stats.winRate}%</div>;
+});
+TESTING
+Component Tests:
+typescript
+import { render, screen, fireEvent } from '@testing-library/react';
+import { BattleCard } from './BattleCard';
+
+describe('BattleCard', () => {
+  it('renders battle name', () => {
+    render(<BattleCard battleId="123" />);
+    expect(screen.getByText('Epic Battle')).toBeInTheDocument();
+  });
+  
+  it('calls onSelect when clicked', () => {
+    const onSelect = jest.fn();
+    render(<BattleCard battleId="123" onSelect={onSelect} />);
+    
+    fireEvent.click(screen.getByRole('button'));
+    expect(onSelect).toHaveBeenCalledWith('123');
+  });
+});

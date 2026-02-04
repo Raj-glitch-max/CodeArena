@@ -1,0 +1,398 @@
+---
+alwaysApply: false
+---
+
+# ALGORITHM ARENA - GLOBAL CURSOR RULES
+# All agents (frontend, backend, database) MUST follow these rules
+
+## CODE QUALITY STANDARDS
+
+### Naming Conventions
+- **Variables**: snake_case (Python), camelCase (TypeScript)
+- **Functions**: snake_case (Python), camelCase (TypeScript)
+- **Classes**: PascalCase (both languages)
+- **Constants**: SCREAMING_SNAKE_CASE
+- **Files**: snake_case.py, kebab-case.tsx
+
+### Code Structure
+- **Max function length**: 50 lines (if longer, split into helpers)
+- **Max file length**: 300 lines (if longer, split into modules)
+- **Max nesting depth**: 4 levels (use early returns)
+- **No magic numbers**: Use named constants
+
+### Documentation
+- **Every function**: Docstring/JSDoc with:
+  - Purpose (1 sentence)
+  - Parameters (name, type, description)
+  - Return value (type, description)
+  - Example usage (if complex)
+- **No inline comments** unless explaining non-obvious logic
+- **README.md** in every directory explaining its purpose
+
+### Error Handling
+- **Never use bare `except:`** in Python
+- **Always catch specific exceptions**
+- **Log errors with context** (user_id, request_id, timestamp)
+- **Return meaningful error messages** (not "Error 500")
+
+### Testing
+- **Every function needs a test** (unit test minimum)
+- **Test file naming**: `test_<module>.py`, `<component>.test.tsx`
+- **Test coverage target**: 80% minimum
+- **Integration tests** for API endpoints
+
+## SECURITY RULES (NON-NEGOTIABLE)
+
+### Never Commit:
+- API keys
+- Passwords
+- Secret tokens
+- Private keys
+- Database credentials
+
+### Use Instead:
+- Environment variables (`.env` files, gitignored)
+- Secret management (Kubernetes secrets, AWS Secrets Manager)
+
+### Input Validation:
+- **All user input is malicious** until proven otherwise
+- **Sanitize before database queries** (use ORMs, not raw SQL)
+- **Validate types** (Pydantic in Python, Zod in TypeScript)
+- **Rate limit all endpoints** (10 requests/minute default)
+
+## PERFORMANCE RULES
+
+### Database Queries:
+- **Always use indexes** on foreign keys and WHERE clause columns
+- **Never SELECT *** (specify columns)
+- **Limit results** (pagination required for lists)
+- **Use connection pooling** (max 20 connections)
+
+### API Responses:
+- **Max response time**: 200ms for reads, 1s for writes
+- **Use caching** (Redis) for frequently accessed data
+- **Compress responses** (gzip)
+- **Paginate large lists** (max 100 items per page)
+
+### Code Execution:
+- **Timeout**: 5 seconds max per algorithm execution
+- **Memory limit**: 256MB per execution
+- **CPU limit**: 1 core per execution
+
+## GIT WORKFLOW
+
+### Commit Messages:
+Format: `<type>(<scope>): <subject>`
+
+Types:
+- `feat`: New feature
+- `fix`: Bug fix
+- `refactor`: Code restructure (no behavior change)
+- `test`: Add/update tests
+- `docs`: Documentation only
+- `chore`: Maintenance (dependencies, config)
+
+Examples:
+- `feat(api): add battle creation endpoint`
+- `fix(frontend): resolve canvas rendering bug`
+- `refactor(worker): simplify battle execution logic`
+
+### Branch Naming:
+- `feat/battle-creation`
+- `fix/canvas-memory-leak`
+- `refactor/database-queries`
+
+### Pull Requests:
+- **Required**: Tests passing, code review, no merge conflicts
+- **Description template**:
+  ```
+  ## What changed?
+  [Brief description]
+  
+  ## Why?
+  [Reason for change]
+  
+  ## Testing?
+  [How you tested it]
+  
+  ## Screenshots (if UI change)
+  [Attach images]
+  ```
+
+## DEPENDENCIES
+
+### Python (backend):
+- **FastAPI**: 0.104+ (API framework)
+- **SQLAlchemy**: 2.0+ (ORM)
+- **Pydantic**: 2.0+ (validation)
+- **Celery**: 5.3+ (task queue)
+- **Redis**: 5.0+ (cache)
+- **PostgreSQL driver**: psycopg2-binary
+- **Wasmtime**: 14.0+ (code execution)
+
+### TypeScript (frontend):
+- **Next.js**: 14+ (framework)
+- **React**: 18+ (UI)
+- **Konva**: 9+ (canvas)
+- **Zustand**: 4+ (state)
+- **Tailwind**: 3+ (styling)
+- **shadcn/ui**: latest (components)
+
+### Version Pinning:
+- **Lock files required**: `requirements.txt`, `package-lock.json`
+- **Update dependencies**: Weekly security patches, monthly feature updates
+
+## FOLDER STRUCTURE (ENFORCED)
+
+```
+algorithm-arena/
+├── backend/
+│   ├── api/              # FastAPI routes
+│   ├── worker/           # Celery tasks
+│   ├── models/           # SQLAlchemy models
+│   ├── schemas/          # Pydantic schemas
+│   ├── services/         # Business logic
+│   ├── utils/            # Helper functions
+│   └── tests/            # Test files
+├── frontend/
+│   ├── app/              # Next.js pages
+│   ├── components/       # React components
+│   ├── lib/              # Utilities
+│   ├── hooks/            # Custom hooks
+│   └── tests/            # Test files
+├── database/
+│   ├── migrations/       # Alembic migrations
+│   └── seeds/            # Test data
+├── devops/
+│   ├── docker/           # Dockerfiles
+│   ├── k8s/              # Kubernetes manifests
+│   └── monitoring/       # Prometheus/Grafana
+└── docs/
+    ├── api/              # API documentation
+    └── architecture/     # System design docs
+```
+
+## LOGGING
+
+### Log Levels:
+- **DEBUG**: Development only (verbose)
+- **INFO**: Normal operations (user login, battle started)
+- **WARNING**: Unexpected but handled (rate limit hit, cache miss)
+- **ERROR**: Operation failed (database timeout, validation error)
+- **CRITICAL**: System failure (service down, data corruption)
+
+### Log Format:
+```json
+{
+  "timestamp": "2026-02-04T17:50:00Z",
+  "level": "INFO",
+  "service": "api",
+  "message": "Battle created",
+  "user_id": "12345",
+  "battle_id": "uuid",
+  "duration_ms": 45
+}
+```
+
+### What to Log:
+- User actions (login, battle start, algorithm submit)
+- Performance metrics (response times, query durations)
+- Errors with full stack traces
+- Security events (failed logins, rate limits)
+
+### What NOT to Log:
+- Passwords (even hashed)
+- API keys
+- Personal data (emails, IP addresses) without anonymization
+
+## ENVIRONMENT VARIABLES
+
+### Required Format:
+```bash
+# Database
+DATABASE_URL=postgresql://user:pass@host:5432/dbname
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# Security
+SECRET_KEY=<random-256-bit-key>
+JWT_ALGORITHM=HS256
+JWT_EXPIRATION_MINUTES=15
+
+# Wasm Execution
+WASM_TIMEOUT_SECONDS=5
+WASM_MEMORY_LIMIT_MB=256
+
+# Rate Limiting
+RATE_LIMIT_PER_MINUTE=10
+```
+
+### Loading Order:
+1. `.env.local` (developer-specific, gitignored)
+2. `.env.development` (shared dev settings)
+3. `.env.production` (production secrets, K8s only)
+
+## ASYNC/AWAIT RULES (Python)
+
+### When to Use Async:
+- ✅ Database queries (async SQLAlchemy)
+- ✅ External API calls
+- ✅ File I/O
+- ✅ Redis operations
+- ✅ WebSocket connections
+
+### When NOT to Use Async:
+- ❌ Pure computation (CPU-bound)
+- ❌ Wasm execution (already non-blocking)
+- ❌ Simple variable assignments
+
+### Pattern:
+```python
+# ✅ GOOD
+async def create_battle(user_id: int):
+    async with AsyncSession(engine) as session:
+        battle = Battle(user_id=user_id)
+        session.add(battle)
+        await session.commit()
+        return battle
+
+# ❌ BAD (blocking call in async function)
+async def bad_example():
+    result = some_sync_function()  # This blocks event loop!
+    return result
+```
+
+## TYPE SAFETY
+
+### Python (Type Hints Required):
+```python
+from typing import List, Optional
+
+def get_battles(user_id: int, limit: int = 10) -> List[Battle]:
+    """Fetch user's battles."""
+    pass
+
+async def create_user(username: str, email: str) -> Optional[User]:
+    """Create user, return None if username taken."""
+    pass
+```
+
+### TypeScript (Strict Mode):
+```typescript
+// tsconfig.json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true
+  }
+}
+
+// Code
+interface Battle {
+  id: string;
+  player1_id: number;
+  status: 'pending' | 'running' | 'completed';
+}
+
+async function getBattle(id: string): Promise<Battle> {
+  // Implementation
+}
+```
+
+## CODE REVIEW CHECKLIST
+
+Before submitting PR, verify:
+- [ ] Tests added and passing
+- [ ] Type hints/types added
+- [ ] Docstrings/JSDoc added
+- [ ] No hardcoded secrets
+- [ ] Error handling implemented
+- [ ] Logging added for key operations
+- [ ] Performance tested (< 200ms response time)
+- [ ] Security reviewed (input validation)
+- [ ] Breaking changes documented
+
+## FAILURE MODES TO AVOID
+
+### ❌ Never Do This:
+```python
+# Bare except
+try:
+    some_function()
+except:  # ❌ Catches KeyboardInterrupt, SystemExit!
+    pass
+
+# SQL injection
+query = f"SELECT * FROM users WHERE id = {user_id}"  # ❌
+
+# Unvalidated input
+@app.post("/users")
+def create_user(data: dict):  # ❌ Use Pydantic model
+    pass
+```
+
+### ✅ Do This Instead:
+```python
+# Specific exception
+try:
+    some_function()
+except ValueError as e:
+    logger.error(f"Invalid value: {e}")
+    raise
+
+# Parameterized query
+query = "SELECT * FROM users WHERE id = :id"
+result = session.execute(query, {"id": user_id})
+
+# Validated input
+class UserCreate(BaseModel):
+    username: str = Field(min_length=3, max_length=20)
+    email: EmailStr
+
+@app.post("/users")
+def create_user(data: UserCreate):
+    pass
+```
+
+## PERFORMANCE BUDGETS
+
+### Frontend:
+- First Contentful Paint: < 1.5s
+- Time to Interactive: < 3s
+- Bundle size: < 500KB (gzipped)
+- Lighthouse score: > 90
+
+### Backend:
+- API response time (p95): < 200ms
+- Database query time (p95): < 50ms
+- Battle execution: < 5s
+- Throughput: 1000 req/s per pod
+
+### Database:
+- Query time: < 50ms
+- Connection pool: 20 max
+- Index hit rate: > 95%
+
+## ACCESSIBILITY (Frontend)
+
+### Required:
+- **Semantic HTML** (nav, main, article, not div soup)
+- **ARIA labels** for interactive elements
+- **Keyboard navigation** (Tab, Enter, Escape work)
+- **Focus indicators** visible
+- **Color contrast** ratio > 4.5:1
+- **Alt text** for images
+
+### Test With:
+- Screen reader (NVDA, VoiceOver)
+- Keyboard only (no mouse)
+- Color blindness simulator
+
+---
+
+END OF GLOBAL RULES
+
+**These rules are enforced by Cursor for ALL code generation.**
+**Violations will be flagged in code review.**
