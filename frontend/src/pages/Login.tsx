@@ -1,8 +1,6 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { useAuth } from '@/contexts/AuthContext'
-import { Mail, Lock, ArrowRight, Zap, Trophy, Users, Flame, Swords } from 'lucide-react'
+import { toast } from 'react-hot-toast'
+
+// ... imports
 
 export default function Login() {
   const { login } = useAuth()
@@ -10,17 +8,26 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Removed error state as we use toast now
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    setError(null)
+
     try {
-      await login(email, password)
-      navigate('/dashboard')
-    } catch {
-      setError('Invalid email or password')
+      const result = await login(email, password)
+      if (result.success) {
+        toast.success('Welcome back, Champion!', {
+          style: { background: '#10B981', color: '#fff' }
+        })
+        navigate('/dashboard')
+      } else {
+        toast.error(result.error || 'Invalid credentials', {
+          style: { background: '#EF4444', color: '#fff' }
+        })
+      }
+    } catch (err) {
+      toast.error('Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -77,15 +84,7 @@ export default function Login() {
               </div>
             </div>
 
-            {error && (
-              <motion.div 
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-destructive text-sm bg-destructive/10 border border-destructive/30 rounded-xl px-4 py-3"
-              >
-                {error}
-              </motion.div>
-            )}
+            {/* Error div removed */}
 
             <div className="flex items-center justify-between text-sm">
               <label className="flex items-center gap-2.5 cursor-pointer">
@@ -116,7 +115,7 @@ export default function Login() {
       <div className="hidden lg:flex items-center justify-center p-8 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-transparent to-accent/15" />
         <div className="absolute inset-0 grid-bg" />
-        
+
         {/* Animated orbs */}
         <motion.div
           className="absolute w-80 h-80 rounded-full blur-[100px]"
@@ -130,7 +129,7 @@ export default function Login() {
           animate={{ scale: [1, 1.15, 1], opacity: [0.25, 0.4, 0.25] }}
           transition={{ duration: 10, repeat: Infinity }}
         />
-        
+
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -144,7 +143,7 @@ export default function Login() {
           <p className="text-muted-foreground text-lg mb-8">
             Join thousands of developers battling in real-time to become the ultimate coding champion.
           </p>
-          
+
           <div className="grid grid-cols-3 gap-5">
             <div className="text-center">
               <div className="w-12 h-12 rounded-xl bg-accent/12 border border-accent/30 flex items-center justify-center mx-auto mb-3">
@@ -170,6 +169,6 @@ export default function Login() {
           </div>
         </motion.div>
       </div>
-    </div>
+    </div >
   )
 }

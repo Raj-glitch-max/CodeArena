@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  database:
+    image: postgres:14-alpine
+    container_name: codearena-db
+    environment:
+      POSTGRES_USER: codearena
+      POSTGRES_PASSWORD: codearena_dev_pass
+      POSTGRES_DB: codearena
+    ports:
+      - "5433:5432"  # Map host 5433 to container 5432 (avoid local postgres conflict)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U codearena" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - codearena-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: codearena-backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://codearena:codearena_dev_pass@database:5432/codearena
+      SECRET_KEY: dev-secret-key-change-in-production-min32chars
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      CORS_ORIGINS: http://localhost:8082,http://localhost:80
+      ENVIRONMENT: development
+      DEBUG: "True"
+    ports:
+      - "9000:9000"
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "-O-", "http://localhost:9000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - codearena-network
+    restart: unless-stopped
+
+  # Frontend UI
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:9000
+    container_name: codearena-frontend
+    environment:
+      VITE_API_URL: http://localhost:9000
+    ports:
+      - "8082:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "-O-", "http://localhost/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - codearena-network
+    restart: unless-stopped
+
+networks:
+  codearena-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

@@ -20,6 +20,8 @@ app.add_middleware(
         "http://localhost:5175",
         "http://localhost:5176",
         "http://localhost:8081",  # Lovable frontend dev server
+        "http://localhost:8082",  # Production Docker frontend
+        "http://localhost:80",    # Nginx default
     ],
     allow_credentials=True,
     allow_methods=["*"],

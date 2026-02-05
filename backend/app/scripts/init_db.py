@@ -23,7 +23,6 @@ async def init_db() -> None:
         if not user:
             print("👤 Creating dev user...")
             user = User(
-                id=1,
                 username="dev",
                 email="dev@example.com",
                 password_hash=hash_password("password123"),
