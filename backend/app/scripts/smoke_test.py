@@ -29,6 +29,11 @@ async def test_matchmaking(client: httpx.AsyncClient) -> None:
     print("leave queue:", r2.status_code, r2.json())
 
 
+async def test_leaderboard(client: httpx.AsyncClient) -> None:
+    r = await client.get(f"{API}/api/v1/leaderboard")
+    print("leaderboard:", r.status_code, r.json())
+
+
 async def test_submissions(client: httpx.AsyncClient) -> None:
     payload = {
         "challenge_id": 1,
@@ -54,6 +59,7 @@ async def main() -> None:
     async with httpx.AsyncClient(timeout=10) as client:
         await test_health(client)
         await test_matchmaking(client)
+        await test_leaderboard(client)
         await test_submissions(client)
     try:
         await test_ws()

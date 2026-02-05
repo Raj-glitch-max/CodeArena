@@ -1,28 +1,58 @@
-# Python
+# Ignore Python cache and virtual environment
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.sqlite3
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# Ignore database files
 *.db
+*.sqlite
+*.sqlite3
+
+# Ignore environment files (contains secrets)
 .env
-.env.*
+.env.local
+.env.*.local
 
-# Backend
-backend/.venv/
-backend/dev.db
-backend/.pytest_cache/
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# Node/Frontend
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
-
-# OS/Editor
+# Ignore OS files
 .DS_Store
 Thumbs.db
-.idea/
-.vscode/
 
-# Logs
+# Ignore logs
 *.log
+logs/
+
+# Ignore test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Ignore build artifacts
+dist/
+build/
+*.egg-info/
+
+# Ignore documentation (kept locally only)
+docs/
+FRONTEND_INTEGRATION_TEST.md
+
+# Ignore temporary files
+tmp/
+temp/
+*.tmp
+/brutal_test.sh
+
+# Ignore node_modules
+node_modules/
