@@ -8,36 +8,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models import Submission
+from app.schemas.submission import RunCodeRequest, CodeSubmissionRequest
 
 router = APIRouter(prefix="/api/v1/submissions", tags=["Submissions"])
 
 
 @router.post("/run")
 async def run_code(
-    problem_id: int,
-    code: str,
-    language: str,
+    request: RunCodeRequest,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     """
     Run code against sample test cases (STUBBED for MVP).
     Returns fake results after 2s delay to simulate execution.
+    Pydantic validates: max length 50KB, non-empty, valid language.
     """
     user_id = int(current_user.get("id"))
     
-    # Validate inputs
-    if not code or len(code) < 5:
-        raise HTTPException(status_code=400, detail="Code is required")
-    if language not in ["python", "rust", "javascript"]:
-        raise HTTPException(status_code=400, detail=f"Unsupported language: {language}")
-    
+    # Pydantic already validated inputs - no manual checks needed
     # Create submission record
     submission = Submission(
         user_id=user_id,
-        challenge_id=problem_id,
-        code=code,
-        language=language,
+        challenge_id=request.problem_id,
+        code=request.code,
+        language=request.language,
         status="RUNNING",
     )
     db.add(submission)
@@ -80,31 +75,24 @@ async def run_code(
 
 @router.post("/submit")
 async def submit_code(
-    problem_id: int,
-    code: str,
-    language: str,
-    battle_id: int | None = None,
+    request: CodeSubmissionRequest,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     """
     Submit code for full evaluation (STUBBED for MVP).
     Returns ACCEPTED or WRONG_ANSWER randomly with fake metrics.
+    Pydantic validates: max length 50KB, non-empty, valid language.
     """
     user_id = int(current_user.get("id"))
     
-    # Validate inputs
-    if not code or len(code) < 5:
-        raise HTTPException(status_code=400, detail="Code is required")
-    if language not in ["python", "rust", "javascript"]:
-        raise HTTPException(status_code=400, detail=f"Unsupported language: {language}")
-    
+    # Pydantic already validated inputs - no manual checks needed
     # Create submission
     submission = Submission(
         user_id=user_id,
-        challenge_id=problem_id,
-        code=code,
-        language=language,
+        challenge_id=request.problem_id,
+        code=request.code,
+        language=request.language,
         status="RUNNING",
     )
     db.add(submission)

@@ -10,8 +10,11 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./dev.db")
 
 engine = create_async_engine(
     DATABASE_URL,
-    echo=False,
-    pool_pre_ping=True,
+    pool_size=20,          # Max concurrent connections
+    max_overflow=10,       # Extra connections if pool is full
+    pool_timeout=30,       # Wait 30s before timing out
+    pool_pre_ping=True,    # Test connection health before use
+    echo=False,            # No SQL logging in production
 )
 
 AsyncSessionLocal = async_sessionmaker(

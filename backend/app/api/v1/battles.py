@@ -159,85 +159,93 @@ async def submit_battle_solution(
     Returns fake results and potentially ends battle.
     """
     user_id = int(current_user.get("id"))
-    battle = await db.get(Battle, battle_id)
-    if not battle:
-        raise HTTPException(status_code=404, detail="Battle not found")
     
-    # Check if user is in this battle
-    if battle.player1_id != user_id and battle.player2_id != user_id:
-        raise HTTPException(status_code=403, detail="Not in this battle")
-    
-    if battle.status == "completed":
-        raise HTTPException(status_code=400, detail="Battle already completed")
-    
-    # Generate fake test results
-    tests_total = random.randint(10, 15)
-    tests_passed = random.randint(7, tests_total)
-    score = (tests_passed / tests_total) * 100
-    
-    # Update battle metrics
-    is_player1 = battle.player1_id == user_id
-    if is_player1:
-        battle.player1_score = int(score)
-        battle.player1_metrics = {"tests_passed": tests_passed, "tests_total": tests_total}
-    else:
-        battle.player2_score = int(score)
-        battle.player2_metrics = {"tests_passed": tests_passed, "tests_total": tests_total}
-    
-    # Check if both players submitted - if so, end battle
-    if battle.player1_score is not None and battle.player2_score is not None:
-        battle.status = "completed"
-        battle.ended_at = datetime.utcnow()
+    # Use atomic transaction with row-level locking to prevent race conditions
+    async with db.begin():
+        # Lock the battle row to prevent concurrent updates
+        result = await db.execute(
+            select(Battle).where(Battle.id == battle_id).with_for_update()
+        )
+        battle = result.scalar_one_or_none()
         
-        # Determine winner
-        if battle.player1_score > battle.player2_score:
-            battle.winner_id = battle.player1_id
-        elif battle.player2_score > battle.player1_score:
-            battle.winner_id = battle.player2_id
-        # else: draw (winner_id stays None)
+        if not battle:
+            raise HTTPException(status_code=404, detail="Battle not found")
         
-        # Calculate ELO changes (simple +25/-25 for MVP)
-        if battle.winner_id == battle.player1_id:
-            battle.player1_elo_change = 25
-            battle.player2_elo_change = -25
-        elif battle.winner_id == battle.player2_id:
-            battle.player1_elo_change = -25
-            battle.player2_elo_change = 25
+        # Check if user is in this battle
+        if battle.player1_id != user_id and battle.player2_id != user_id:
+            raise HTTPException(status_code=403, detail="Not in this battle")
+        
+        if battle.status == "completed":
+            raise HTTPException(status_code=400, detail="Battle already completed")
+        
+        # Generate fake test results
+        tests_total = random.randint(10, 15)
+        tests_passed = random.randint(7, tests_total)
+        score = (tests_passed / tests_total) * 100
+        
+        # Update battle metrics
+        is_player1 = battle.player1_id == user_id
+        if is_player1:
+            battle.player1_score = int(score)
+            battle.player1_metrics = {"tests_passed": tests_passed, "tests_total": tests_total}
         else:
-            # Draw
-            battle.player1_elo_change = 0
-            battle.player2_elo_change = 0
+            battle.player2_score = int(score)
+            battle.player2_metrics = {"tests_passed": tests_passed, "tests_total": tests_total}
         
-        # Update user ratings
-        p1 = await db.get(User, battle.player1_id)
-        p2 = await db.get(User, battle.player2_id)
-        if p1:
-            p1.rating += battle.player1_elo_change
-            if battle.winner_id == p1.id:
-                p1.battles_won += 1
-                p1.win_streak += 1
-                p1.loss_streak = 0
-                if p1.win_streak > p1.best_win_streak:
-                    p1.best_win_streak = p1.win_streak
+        # Check if both players submitted - if so, end battle
+        if battle.player1_score is not None and battle.player2_score is not None:
+            battle.status = "completed"
+            battle.ended_at = datetime.utcnow()
+            
+            # Determine winner
+            if battle.player1_score > battle.player2_score:
+                battle.winner_id = battle.player1_id
+            elif battle.player2_score > battle.player1_score:
+                battle.winner_id = battle.player2_id
+            # else: draw (winner_id stays None)
+            
+            # Calculate ELO changes (simple +25/-25 for MVP)
+            if battle.winner_id == battle.player1_id:
+                battle.player1_elo_change = 25
+                battle.player2_elo_change = -25
+            elif battle.winner_id == battle.player2_id:
+                battle.player1_elo_change = -25
+                battle.player2_elo_change = 25
             else:
-                p1.battles_lost += 1
-                p1.loss_streak += 1
-                p1.win_streak = 0
+                # Draw
+                battle.player1_elo_change = 0
+                battle.player2_elo_change = 0
+            
+            # Update user ratings atomically (all or nothing)
+            p1 = await db.get(User, battle.player1_id)
+            p2 = await db.get(User, battle.player2_id)
+            if p1:
+                p1.rating += battle.player1_elo_change
+                if battle.winner_id == p1.id:
+                    p1.battles_won += 1
+                    p1.win_streak += 1
+                    p1.loss_streak = 0
+                    if p1.win_streak > p1.best_win_streak:
+                        p1.best_win_streak = p1.win_streak
+                else:
+                    p1.battles_lost += 1
+                    p1.loss_streak += 1
+                    p1.win_streak = 0
+            
+            if p2:
+                p2.rating += battle.player2_elo_change
+                if battle.winner_id == p2.id:
+                    p2.battles_won += 1
+                    p2.win_streak += 1
+                    p2.loss_streak = 0
+                    if p2.win_streak > p2.best_win_streak:
+                        p2.best_win_streak = p2.win_streak
+                else:
+                    p2.battles_lost += 1
+                    p2.loss_streak += 1
+                    p2.win_streak = 0
         
-        if p2:
-            p2.rating += battle.player2_elo_change
-            if battle.winner_id == p2.id:
-                p2.battles_won += 1
-                p2.win_streak += 1
-                p2.loss_streak = 0
-                if p2.win_streak > p2.best_win_streak:
-                    p2.best_win_streak = p2.win_streak
-            else:
-                p2.battles_lost += 1
-                p2.loss_streak += 1
-                p2.win_streak = 0
-    
-    await db.commit()
+        # Transaction auto-commits on context exit (or rolls back on error)
     
     return {
         "success": True,
