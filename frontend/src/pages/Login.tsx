@@ -1,6 +1,9 @@
 import { toast } from 'react-hot-toast'
-
-// ... imports
+import { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { useAuth } from '@/contexts/AuthContext'
+import { motion } from 'framer-motion'
+import { Mail, Lock, ArrowRight, Sparkles, Zap, Swords, Trophy, Users, Flame } from 'lucide-react'
 
 export default function Login() {
   const { login } = useAuth()
