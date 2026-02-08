@@ -1,0 +1,459 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Primary - Neon Cyan */
+    --primary: 187 100% 50%;
+    --primary-dark: 187 100% 42%;
+    --primary-light: 187 100% 69%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Accent - Crimson Red (INTENSE) */
+    --accent: 350 100% 56%;
+    --accent-dark: 350 100% 42%;
+    --accent-light: 350 100% 66%;
+    --accent-foreground: 0 0% 100%;
+    
+    /* Secondary Purple */
+    --purple: 273 100% 58%;
+    --purple-dark: 273 100% 46%;
+    --purple-light: 273 100% 71%;
+    
+    /* Danger - Neon Red */
+    --danger: 350 100% 56%;
+    --danger-dark: 0 100% 42%;
+    --danger-light: 0 100% 66%;
+    
+    /* Success - Toxic Green (Matrix style) */
+    --success: 120 100% 50%;
+    --success-dark: 120 100% 40%;
+    --success-light: 120 100% 67%;
+    
+    /* Warning - Amber */
+    --warning: 48 100% 50%;
+    --warning-dark: 38 100% 50%;
+    
+    /* Backgrounds - ULTRA DARK */
+    --background: 225 71% 4%;
+    --background-secondary: 226 58% 8%;
+    --background-tertiary: 226 45% 12%;
+    --background-elevated: 226 40% 16%;
+    
+    /* Glass Morphism - Red tinted */
+    --glass-bg: 226 58% 8% / 0.85;
+    --glass-border: 350 100% 56% / 0.2;
+    
+    /* Text */
+    --foreground: 0 0% 100%;
+    --foreground-secondary: 218 17% 72%;
+    --foreground-muted: 217 16% 52%;
+    
+    /* Semantic mappings */
+    --card: 226 58% 8%;
+    --card-foreground: 0 0% 100%;
+    --popover: 226 58% 8%;
+    --popover-foreground: 0 0% 100%;
+    --secondary: 226 45% 12%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 226 40% 16%;
+    --muted-foreground: 217 16% 52%;
+    --destructive: 350 100% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 350 100% 56% / 0.15;
+    --input: 226 45% 12%;
+    --ring: 350 100% 56%;
+    --chart-1: 187 100% 50%;
+    --chart-2: 350 100% 56%;
+    --chart-3: 120 100% 50%;
+    --chart-4: 273 100% 58%;
+    --chart-5: 48 100% 50%;
+    --radius: 0.5rem;
+    
+    /* Sidebar */
+    --sidebar-background: 226 58% 8%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 350 100% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 226 45% 12%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 350 100% 56% / 0.15;
+    --sidebar-ring: 350 100% 56%;
+    
+    /* Shadows & Glows - INTENSE */
+    --shadow-neon-cyan: 0 0 30px hsl(187 100% 50% / 0.6), 0 0 60px hsl(187 100% 50% / 0.3);
+    --shadow-neon-red: 0 0 30px hsl(350 100% 56% / 0.7), 0 0 60px hsl(350 100% 56% / 0.4);
+    --shadow-neon-purple: 0 0 30px hsl(273 100% 58% / 0.6);
+    --shadow-neon-green: 0 0 30px hsl(120 100% 50% / 0.6);
+    --shadow-elevation: 0 20px 60px hsl(0 0% 0% / 0.7);
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--purple)));
+    --gradient-battle: linear-gradient(135deg, hsl(var(--accent)), hsl(var(--purple)));
+    --gradient-holographic: linear-gradient(135deg, hsl(187 100% 50%), hsl(273 100% 58%), hsl(350 100% 56%));
+    --gradient-matrix: linear-gradient(180deg, hsl(120 100% 50% / 0.1), transparent);
+  }
+
+  * {
+    @apply border-border;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply antialiased;
+    font-family: 'Rajdhani', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+
+  /* Custom scrollbar - RED themed */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--accent) / 0.5);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--accent) / 0.8);
+  }
+}
+
+@layer components {
+  /* Glass Card - Red Glow */
+  .glass-card {
+    background: hsl(var(--glass-bg));
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid hsl(var(--glass-border));
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-elevation);
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-500;
+  }
+
+  .glass-card-hover:hover {
+    border-color: hsl(var(--accent) / 0.5);
+    box-shadow: 0 0 40px hsl(var(--accent) / 0.2), var(--shadow-elevation);
+  }
+
+  /* Neon Borders */
+  .neon-border {
+    border: 1px solid hsl(var(--accent));
+    box-shadow: var(--shadow-neon-red);
+  }
+
+  .neon-border-cyan {
+    border: 1px solid hsl(var(--primary));
+    box-shadow: var(--shadow-neon-cyan);
+  }
+
+  /* Text Gradients */
+  .text-gradient {
+    background: var(--gradient-battle);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .text-gradient-cyan {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .text-gradient-matrix {
+    background: linear-gradient(180deg, hsl(120 100% 60%), hsl(120 100% 40%));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 30px hsl(120 100% 50% / 0.5);
+  }
+
+  /* Grid Background - Darker, subtler */
+  .grid-background {
+    background-image: 
+      linear-gradient(hsl(var(--accent) / 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--accent) / 0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    animation: grid-flow 25s linear infinite;
+  }
+
+  /* Noise Overlay */
+  .noise-overlay {
+    position: absolute;
+    inset: 0;
+    opacity: 0.02;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+
+  /* Scanline Effect */
+  .scanline::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    pointer-events: none;
+    opacity: 0.3;
+    background: linear-gradient(transparent, hsl(var(--accent)), transparent);
+    animation: scan 4s linear infinite;
+  }
+
+  /* Font Families */
+  .font-display {
+    font-family: 'Orbitron', monospace;
+    letter-spacing: 0.05em;
+  }
+
+  .font-mono-game {
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  /* Animated gradient border */
+  .border-gradient-animated {
+    position: relative;
+    background: hsl(var(--background-secondary));
+    border-radius: var(--radius);
+  }
+
+  .border-gradient-animated::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: calc(var(--radius) + 2px);
+    background: var(--gradient-holographic);
+    background-size: 300% 300%;
+    animation: gradient-shift 4s ease infinite;
+    z-index: -1;
+    opacity: 0.7;
+  }
+
+  /* Matrix rain effect */
+  .matrix-overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--gradient-matrix);
+    pointer-events: none;
+  }
+
+  /* Red glow pulse */
+  .glow-red {
+    box-shadow: var(--shadow-neon-red);
+  }
+
+  /* Cyber corner decorations */
+  .cyber-corners::before,
+  .cyber-corners::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 2px solid hsl(var(--accent));
+  }
+
+  .cyber-corners::before {
+    top: -1px;
+    left: -1px;
+    border-right: none;
+    border-bottom: none;
+  }
+
+  .cyber-corners::after {
+    bottom: -1px;
+    right: -1px;
+    border-left: none;
+    border-top: none;
+  }
+}
+
+/* Glitch Text Effect - More Intense */
+.glitch-text {
+  position: relative;
+  display: inline-block;
+}
+
+.glitch-text::before,
+.glitch-text::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.glitch-text::before {
+  left: 3px;
+  text-shadow: -3px 0 hsl(var(--accent));
+  clip: rect(44px, 450px, 56px, 0);
+  animation: glitch-anim 3s infinite linear alternate-reverse;
+}
+
+.glitch-text::after {
+  left: -3px;
+  text-shadow: -3px 0 hsl(var(--primary));
+  clip: rect(44px, 450px, 56px, 0);
+  animation: glitch-anim2 3s infinite linear alternate-reverse;
+}
+
+@keyframes glitch-anim {
+  0% { clip: rect(10px, 9999px, 31px, 0); transform: skew(0.5deg); }
+  10% { clip: rect(85px, 9999px, 140px, 0); transform: skew(-0.5deg); }
+  20% { clip: rect(60px, 9999px, 90px, 0); transform: skew(0.5deg); }
+  30% { clip: rect(30px, 9999px, 70px, 0); transform: skew(-0.5deg); }
+  40% { clip: rect(120px, 9999px, 160px, 0); transform: skew(0.5deg); }
+  50% { clip: rect(50px, 9999px, 100px, 0); transform: skew(-0.5deg); }
+  60% { clip: rect(10px, 9999px, 31px, 0); transform: skew(0.5deg); }
+  70% { clip: rect(85px, 9999px, 140px, 0); transform: skew(-0.5deg); }
+  80% { clip: rect(60px, 9999px, 90px, 0); transform: skew(0.5deg); }
+  90% { clip: rect(30px, 9999px, 70px, 0); transform: skew(-0.5deg); }
+  100% { clip: rect(50px, 9999px, 100px, 0); transform: skew(0.5deg); }
+}
+
+@keyframes glitch-anim2 {
+  0% { clip: rect(65px, 9999px, 119px, 0); transform: skew(-0.5deg); }
+  10% { clip: rect(40px, 9999px, 66px, 0); transform: skew(0.5deg); }
+  20% { clip: rect(125px, 9999px, 138px, 0); transform: skew(-0.5deg); }
+  30% { clip: rect(76px, 9999px, 107px, 0); transform: skew(0.5deg); }
+  40% { clip: rect(24px, 9999px, 50px, 0); transform: skew(-0.5deg); }
+  50% { clip: rect(91px, 9999px, 148px, 0); transform: skew(0.5deg); }
+  60% { clip: rect(65px, 9999px, 119px, 0); transform: skew(-0.5deg); }
+  70% { clip: rect(40px, 9999px, 66px, 0); transform: skew(0.5deg); }
+  80% { clip: rect(125px, 9999px, 138px, 0); transform: skew(-0.5deg); }
+  90% { clip: rect(76px, 9999px, 107px, 0); transform: skew(0.5deg); }
+  100% { clip: rect(91px, 9999px, 148px, 0); transform: skew(-0.5deg); }
+}
+
+/* Animations */
+@keyframes grid-flow {
+  0% { background-position: 0 0; }
+  100% { background-position: 60px 60px; }
+}
+
+@keyframes scan {
+  0% { transform: translateY(-100%); opacity: 0; }
+  50% { opacity: 0.3; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+
+@keyframes pulse-glow-red {
+  0%, 100% {
+    box-shadow: 0 0 10px hsl(var(--accent)),
+                0 0 20px hsl(var(--accent)),
+                0 0 30px hsl(var(--accent));
+  }
+  50% {
+    box-shadow: 0 0 20px hsl(var(--accent)),
+                0 0 40px hsl(var(--accent)),
+                0 0 60px hsl(var(--accent)),
+                0 0 80px hsl(var(--accent));
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink-caret {
+  from, to { border-color: transparent; }
+  50% { border-color: hsl(var(--accent)); }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.3);
+    opacity: 0;
+  }
+}
+
+.animate-pulse-glow-red {
+  animation: pulse-glow-red 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.8s ease-out forwards;
+}
+
+.animate-gradient {
+  background-size: 300% 300%;
+  animation: gradient-shift 4s ease infinite;
+}
+
+/* Typing effect */
+.typing-text {
+  overflow: hidden;
+  border-right: 3px solid hsl(var(--accent));
+  white-space: nowrap;
+  animation: typing 3.5s steps(40, end), blink-caret 0.75s step-end infinite;
+}
+
+/* Pulse ring effect for buttons */
+.pulse-ring {
+  position: relative;
+}
+
+.pulse-ring::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid hsl(var(--accent));
+  border-radius: inherit;
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+/* Japanese text styling */
+.jp-text {
+  font-family: 'Noto Sans JP', sans-serif;
+  letter-spacing: 0.1em;
+}
