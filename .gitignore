@@ -52,3 +52,12 @@ CONTRIBUTING.md
 .idea/
 .vscode/
 *.log
+
+# AWS Deployment (contains secrets and IPs)
+.aws-deployment-info
+.env.production
+*.pem
+ec2-launch.log
+docker-setup.log
+docker-build.log
+
