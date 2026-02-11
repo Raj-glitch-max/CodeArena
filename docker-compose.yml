@@ -1,0 +1,240 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: codearena-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: codearena
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d codearena"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    
+    restart: unless-stopped
+
+    networks:
+      - codearena-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: codearena-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+
+    ports:
+      - "6379:6379"
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 30s
+      retries: 5
+
+    restart: unless-stopped
+
+    networks:
+      - codearena-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: codearena-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - codearena-network
+
+  auth-service:
+    build:
+      context: ./backend/services/auth-service
+      dockerfile: DockerFile
+    container_name: codearena-auth
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-codearena123}@postgres:5432/codearena
+      REDIS_URL: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
+      JWT_EXPIRES_IN: 7d
+      CORS_ORIGIN: http://localhost:8083
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/services/auth-service/src:/app/src
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - codearena-network
+
+  battle-service:
+    build:
+      context: ./backend/services/battle-service
+      dockerfile: DockerFile
+    container_name: codearena-battle
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-codearena123}@postgres:5432/codearena
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      CORS_ORIGIN: http://localhost:8083
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./backend/services/battle-service/src:/app/src
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - codearena-network
+
+  execution-service:
+    build:
+      context: ./backend/services/execution-service
+      dockerfile: DockerFile
+    container_name: codearena-execution
+    environment:
+      NODE_ENV: development
+      PORT: 3003
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      MAX_EXECUTION_TIME: 10
+      MAX_MEMORY: 256M
+    ports:
+      - "3003:3003"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./backend/services/execution-service/src:/app/src
+      - /app/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    networks:
+      - codearena-network
+
+  rating-service:
+    build:
+      context: ./backend/services/rating-service
+      dockerfile: DockerFile
+    container_name: codearena-rating
+    environment:
+      NODE_ENV: development
+      PORT: 3004
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-codearena123}@postgres:5432/codearena
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGIN: http://localhost:8083
+    ports:
+      - "3004:3004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/services/rating-service/src:/app/src
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - codearena-network
+
+  websocket-server:
+    build:
+      context: ./backend/services/websocket-server
+      dockerfile: DockerFile
+    container_name: codearena-websocket
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
+      CORS_ORIGIN: http://localhost:8083
+    ports:
+      - "3000:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/services/websocket-server/src:/app/src
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - codearena-network
+
+
+  
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: codearena-frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:3001
+      VITE_BATTLE_API_URL: http://localhost:3002
+      VITE_EXECUTION_API_URL: http://localhost:3003
+      VITE_RATING_API_URL: http://localhost:3004
+      VITE_WS_URL: http://localhost:3000
+      CLIENT_URL: http://localhost:8083
+    ports:
+      - "8083:8083"
+    depends_on:
+      - auth-service
+      - battle-service
+      - websocket-server
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./index.html:/app/index.html
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - codearena-network
+
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  codearena-network:
+    driver: bridge
