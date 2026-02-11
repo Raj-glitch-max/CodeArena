@@ -50,15 +50,21 @@
 
 ---
 
-### 🎯 Phase 4: CI/CD with GitHub Actions
+### 🎯 Phase 4: CI/CD with Jenkins (Enterprise Standard)
 
 **Sequence:**
-5. **04_CICD_GUIDE.md** - GitHub Actions, automated testing, deployments
-6. **04_CICD_TEST.md** - Brutal CI/CD testing
+5. **04_JENKINS_GUIDE.md** - Jenkins setup (Docker), Pipeline as Code, Architecture
+6. **04_JENKINS_TEST.md** - Brutal Jenkins testing (850 points)
+7. **04_CICD_GUIDE.md** - *Optional:* GitHub Actions for quick automation
 
-**Goal:** Automated deployment pipeline from git push to production
+**Goal:** Build a production-grade CI/CD pipeline using Jenkins (self-hosted)
+- Run Jenkins locally in Docker (Zero Cost)
+- Build, Test, Push to Registry, Deploy
+- Implement "Pipeline as Code" with Jenkinsfile
 
-**Why this order?** Manual deployments are slow and error-prone.
+**Why this order?**
+- **Jenkins:** Used by 70% of enterprises, banks, and big tech. Harder to learn, but gets you hired.
+- **GitHub Actions:** Good for open source and small projects, but Jenkins teaches you *real* DevOps concepts.
 
 ---
 
