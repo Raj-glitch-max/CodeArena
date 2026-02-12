@@ -1,6 +1,17 @@
 import { Server } from 'socket.io';
 import { AuthenticatedSocket } from '../middleware/auth';
 import { redisClient, publisher } from '../utils/redis';
+import axios from 'axios';
+
+const BATTLE_SERVICE_URL = process.env.BATTLE_SERVICE_URL || 'http://localhost:3002';
+
+const battleServiceClient = axios.create({
+    baseURL: BATTLE_SERVICE_URL,
+    timeout: 5000,
+    headers: {
+        'Content-Type': 'application/json'
+    }
+});
 
 export const setupBattleHandlers = (io: Server, socket: AuthenticatedSocket) => {
     // Join battle room
@@ -131,12 +142,30 @@ export const setupBattleHandlers = (io: Server, socket: AuthenticatedSocket) => 
                     winner = p1Time < p2Time ? 'player1' : 'player2';
                 }
 
-                // Update battle status
+                // Update battle status in Redis
                 await redisClient.hset(`battle:${battleId}`, {
                     status: 'completed',
                     winner,
                     completedAt: Date.now()
                 });
+
+                // Get battle info to identify players
+                const battleInfo = await redisClient.hgetall(`battle:${battleId}`);
+
+                // Persist to Database via Battle Service
+                if (battleInfo && battleInfo.player1Id && battleInfo.player2Id) {
+                    try {
+                        const winnerId = winner === 'player1' ? battleInfo.player1Id : battleInfo.player2Id;
+
+                        await battleServiceClient.patch(`/api/battles/${battleId}/status`, {
+                            status: 'completed',
+                            winnerId
+                        });
+                        console.log(`✅ Persisted battle ${battleId} results to database`);
+                    } catch (err) {
+                        console.error('Failed to persist battle results:', err);
+                    }
+                }
 
                 // Notify both players
                 io.to(battleId).emit('battle:completed', {

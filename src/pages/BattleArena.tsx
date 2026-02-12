@@ -101,18 +101,6 @@ const BattleArena = () => {
   const [opponent] = useState(mockOpponents[Math.floor(Math.random() * mockOpponents.length)]);
   const [battleResult, setBattleResult] = useState<"win" | "lose" | null>(null);
   const [showOpponentProgress, setShowOpponentProgress] = useState(true);
-  const [submissionResult, setSubmissionResult] = useState<{
-    passedTests: number;
-    totalTests: number;
-    allPassed: boolean;
-  } | null>(null);
-  const [ratingChange, setRatingChange] = useState<{
-    oldRating: number;
-    newRating: number;
-    oldRank: string;
-    newRank: string;
-    change: number;
-  } | null>(null);
 
   // Sound effects hook
   const { play: playSound } = useSound();
@@ -161,54 +149,11 @@ const BattleArena = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleCodeSubmission = async (result: { passedTests: number; totalTests: number; allPassed: boolean }) => {
-    setSubmissionResult(result);
-
-    // Determine win/loss based on test results
-    const won = result.allPassed;
+  const handleSubmit = () => {
+    // Random win/lose for demo
+    const won = Math.random() > 0.3;
     setBattleResult(won ? "win" : "lose");
-
-    // Update player ratings
-    await updatePlayerRatings(won);
-
-    // Show victory/defeat modal
     setBattleState("finished");
-  };
-
-  const updatePlayerRatings = async (won: boolean) => {
-    try {
-      const { updateRatings } = await import('@/services/ratingApi');
-
-      // Mock user and battle data for now
-      const userId = 'testuser';
-      const opponentId = 'mock-opponent';
-
-      const result = await updateRatings(
-        `battle-${Date.now()}`,
-        won ? userId : opponentId,
-        won ? opponentId : userId
-      );
-
-      // Extract rating changes for current user
-      const userRating = won ? result.winner : result.loser;
-      setRatingChange({
-        oldRating: userRating.oldRating,
-        newRating: userRating.newRating,
-        oldRank: userRating.oldRank,
-        newRank: userRating.newRank,
-        change: userRating.ratingChange
-      });
-    } catch (error) {
-      console.error('Failed to update ratings:', error);
-      // Fallback to mock rating changes
-      setRatingChange({
-        oldRating: 1500,
-        newRating: won ? 1518 : 1488,
-        oldRank: 'Silver',
-        newRank: 'Silver',
-        change: won ? 18 : -12
-      });
-    }
   };
 
   // Play victory/defeat sound when battle ends
@@ -380,7 +325,7 @@ const BattleArena = () => {
         <LeetCodeEditor
           problem={problem}
           timeLeft={timeLeft}
-          onSubmit={handleCodeSubmission}
+          onSubmit={handleSubmit}
           onRunTests={handleRunTests}
         />
 
@@ -459,27 +404,17 @@ const BattleArena = () => {
                 className="flex items-center justify-center gap-8 mb-8"
               >
                 <div className="text-center">
-                  <div className={`text-3xl font-display font-bold ${ratingChange && ratingChange.change > 0 ? "text-success" : "text-danger"
-                    }`}>
-                    {ratingChange ? (ratingChange.change > 0 ? '+' : '') + ratingChange.change : (battleResult === "win" ? "+18" : "-12")}
+                  <div className={`text-3xl font-display font-bold ${battleResult === "win" ? "text-success" : "text-danger"}`}>
+                    {battleResult === "win" ? "+18" : "-12"}
                   </div>
-                  <div className="text-xs text-muted-foreground font-mono">
-                    {ratingChange ? `${ratingChange.newRating} ELO` : 'RATING'}
-                  </div>
+                  <div className="text-xs text-muted-foreground font-mono">RATING</div>
                 </div>
-
-                {/* Show rank change if it happened */}
-                {ratingChange && ratingChange.oldRank !== ratingChange.newRank && (
-                  <div className="text-center">
-                    <div className="text-3xl font-display font-bold text-warning">
-                      {ratingChange.newRank > ratingChange.oldRank ? '⬆️' : '⬇️'}
-                    </div>
-                    <div className="text-xs text-muted-foreground font-mono">
-                      {ratingChange.newRank}
-                    </div>
+                <div className="text-center">
+                  <div className="text-3xl font-display font-bold text-warning">
+                    {battleResult === "win" ? "+50" : "+10"}
                   </div>
-                )}
-
+                  <div className="text-xs text-muted-foreground font-mono">XP</div>
+                </div>
                 <div className="text-center">
                   <div className="text-3xl font-display font-bold text-white flex items-center gap-1">
                     <Flame className={`w-6 h-6 ${battleResult === "win" ? "text-accent" : "text-muted-foreground"}`} />

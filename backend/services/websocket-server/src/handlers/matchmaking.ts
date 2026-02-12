@@ -1,6 +1,17 @@
 import { Server } from 'socket.io';
 import { AuthenticatedSocket } from '../middleware/auth';
 import { publisher, redisClient } from '../utils/redis';
+import axios from 'axios';
+
+const BATTLE_SERVICE_URL = process.env.BATTLE_SERVICE_URL || 'http://localhost:3002';
+
+const battleServiceClient = axios.create({
+    baseURL: BATTLE_SERVICE_URL,
+    timeout: 5000,
+    headers: {
+        'Content-Type': 'application/json'
+    }
+});
 
 export const setupMatchmakingHandlers = (io: Server, socket: AuthenticatedSocket) => {
     // Join matchmaking queue
@@ -45,17 +56,38 @@ export const setupMatchmakingHandlers = (io: Server, socket: AuthenticatedSocket
                     const player1Info = await redisClient.hgetall(`user:${player1Id}`);
                     const player2Info = await redisClient.hgetall(`user:${player2Id}`);
 
-                    // Create battle ID
-                    const battleId = `battle_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    // Create battle in Database via Battle Service
+                    let battleId;
+                    let problemId;
 
-                    // Store battle info
+                    try {
+                        const response = await battleServiceClient.post('/api/battles', {
+                            player1Id,
+                            player2Id,
+                            mode,
+                            difficulty: difficulty || 'any'
+                        });
+
+                        const battle = response.data.battle;
+                        battleId = battle.id;
+                        problemId = battle.problemId;
+                        console.log(`✅ Created persistent battle: ${battleId}`);
+                    } catch (err) {
+                        console.error('Failed to create persistent battle, falling back to valid UUID:', err);
+                        // Fallback to a random UUID if service fails, but this is bad
+                        // For now we will try to proceed but database stats won't work
+                        battleId = `battle_${Date.now()}`;
+                    }
+
+                    // Store battle info in Redis
                     await redisClient.hset(`battle:${battleId}`, {
                         player1Id,
                         player2Id,
                         mode,
                         difficulty: difficulty || 'any',
                         status: 'countdown',
-                        createdAt: Date.now()
+                        createdAt: Date.now(),
+                        problemId: problemId || ''
                     });
 
                     // Notify both players

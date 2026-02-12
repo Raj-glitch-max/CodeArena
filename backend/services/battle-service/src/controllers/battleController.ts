@@ -43,12 +43,41 @@ export class BattleController {
     static async createBattle(req: Request, res: Response) {
         try {
             const { player1Id, player2Id, problemId, mode, difficulty } = req.body;
+            let finalProblemId = problemId;
+
+            // If no problemId provided, get a random one based on difficulty
+            if (!finalProblemId) {
+                const where: any = { isActive: true };
+                if (difficulty && typeof difficulty === 'string' && ['easy', 'medium', 'hard'].includes(difficulty)) {
+                    where.difficulty = difficulty;
+                }
+
+                const count = await prisma.problem.count({ where });
+                if (count === 0) {
+                    return res.status(404).json({ error: 'No problems found for difficulty' });
+                }
+
+                const skip = Math.floor(Math.random() * count);
+                const problem = await prisma.problem.findFirst({
+                    where,
+                    skip,
+                    select: { id: true }
+                });
+
+                if (problem) {
+                    finalProblemId = problem.id;
+                }
+            }
+
+            if (!finalProblemId) {
+                return res.status(400).json({ error: 'Could not select a problem' });
+            }
 
             const battle = await prisma.battle.create({
                 data: {
                     player1Id,
                     player2Id,
-                    problemId,
+                    problemId: finalProblemId,
                     mode,
                     difficulty: difficulty || null,
                     status: 'countdown'

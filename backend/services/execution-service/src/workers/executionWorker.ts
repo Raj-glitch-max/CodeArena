@@ -17,7 +17,8 @@ export async function startWorker() {
 
                 // Update job result via HTTP
                 const axios = require('axios');
-                await axios.put(`http://localhost:3003/api/jobs/${jobId}/result`, {
+                const API_URL = process.env.EXECUTION_API_URL || 'http://localhost:3003';
+                await axios.put(`${API_URL}/api/jobs/${jobId}/result`, {
                     ...result,
                     battleId,
                     userId
