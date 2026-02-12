@@ -30,10 +30,16 @@ pipeline {
         stage('Deploy Cluster'){
             steps {
                 echo "Deploying Cluster with TAG: ${TAG}"
-                sh 'docker-compose down' // Clean slate
-                sh 'docker-compose up -d postgres redis rabbitmq'
-                sleep 5 // Wait for DBs
-                sh 'docker-compose up -d'
+                
+                // Senior Move: Force remove containers with conflicting names to avoid "Already in use" errors
+                sh 'docker rm -f codearena-postgres codearena-redis codearena-rabbitmq codearena-auth codearena-battle codearena-rating codearena-websocket codearena-execution codearena-frontend || true'
+                
+                // Deploy infrastructure first with a secret password
+                sh 'POSTGRES_PASSWORD=codearena123 docker-compose up -d postgres redis rabbitmq'
+                sleep 10 // Give infrastructure more time to be 'Healthy'
+                
+                // Deploy services
+                sh 'POSTGRES_PASSWORD=codearena123 docker-compose up -d'
             }
         }
     }
