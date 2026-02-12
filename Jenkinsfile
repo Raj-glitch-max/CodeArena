@@ -8,9 +8,20 @@ pipeline {
         stage('Check Quality') {
             steps {
                 script {
-                    echo "Checking Code Quality (Lint & Unit Tests)..."
-                    // Running in a temporary container to keep Jenkins host clean
-                    sh "docker run --rm -v ${WORKSPACE}:/app -w /app node:22-alpine sh -c 'npm ci && npm run lint && npm run test'"
+                    echo "Checking Code Quality (Building Test Container)..."
+                    // Senior Move: Instead of mounting host folders (which fails on restricted systems), 
+                    // we build a temporary "Test Image". This is much more reliable and secure.
+                    sh """
+                        docker build -t code-quality-gate:${TAG} -f - . <<EOF
+                        FROM node:22-alpine
+                        WORKDIR /app
+                        COPY package*.json ./
+                        RUN npm ci
+                        COPY . .
+                        RUN npm run lint && npm run test
+EOF
+                    """
+                    echo "Quality Gate PASSED! 🛡️"
                 }
             }
         }
