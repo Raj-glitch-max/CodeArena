@@ -8,29 +8,20 @@ pipeline {
         stage('parellel Build & Test') {
             parallel {
                 stage('auth service') {
-                    steps { sh 'docker build -t auth-service:${TAG} ./backend/services/auth-service'}
+                    steps { sh "docker build -t auth-service:${TAG} -f backend/services/auth-service/DockerFile backend/services/auth-service" }
                 }
                 stage('Battle Service') {
-                    steps { sh 'docker build -t battle-service:${TAG} ./backend/services/battle-service' }
+                    steps { sh "docker build -t battle-service:${TAG} -f backend/services/battle-service/DockerFile backend/services/battle-service" }
                 }
                 stage('rating-service') {
-                    steps { sh 'docker build -t rating-service:${TAG} ./backend/services/rating-service' }
+                    steps { sh "docker build -t rating-service:${TAG} -f backend/services/rating-service/DockerFile backend/services/rating-service" }
                 }
                 stage('websocket-server') {
-                    steps { sh 'docker build -t websocket-server:${TAG} ./backend/services/websocket-server' }
+                    steps { sh "docker build -t websocket-server:${TAG} -f backend/services/websocket-server/DockerFile backend/services/websocket-server" }
                 }
                 stage('execution-service') {
-                    steps { sh 'docker build -t execution-service:${TAG} ./backend/services/execution-service' }
+                    steps { sh "docker build -t execution-service:${TAG} -f backend/services/execution-service/DockerFile backend/services/execution-service" }
                 }
-                // stage('postgresql') {
-                //     steps { sh 'docker build -t postgresql ./backend/services/postgresql' }
-                // }
-                // stage('redis') {
-                //     steps { sh 'docker build -t redis ./backend/services/redis' }
-                // }
-                // stage('rabbitMQ') {
-                //     steps { sh 'docker build -t rabbitmq ./backend/services/rabbitmq' }
-                // }
                 stage('frontend') {
                     steps { sh "docker build -t frontend-service:${TAG} -f Dockerfile.frontend ." }
                 }
