@@ -159,8 +159,6 @@ services:
       NODE_ENV: development
       PORT: 3004
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-codearena123}@postgres:5432/codearena
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
       REDIS_URL: redis://redis:6379
       CORS_ORIGIN: http://localhost:8083
     ports:
@@ -183,8 +181,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3000
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
       CORS_ORIGIN: http://localhost:8083
     ports:
@@ -209,11 +206,11 @@ services:
       - battle-service
       - websocket-server
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:80/ || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
       interval: 30s
-      timeout: 3s
+      timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 20s
     restart: unless-stopped
     networks:
       - codearena-network

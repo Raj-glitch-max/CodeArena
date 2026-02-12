@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import executionRoutes from './routes/executionRoutes';
 import { connectRabbitMQ } from './utils/rabbitmq';
+import { startWorker } from './workers/executionWorker';
 
 dotenv.config();
 
@@ -35,6 +36,9 @@ async function start() {
     try {
         // Connect to RabbitMQ
         await connectRabbitMQ();
+
+        // Start the execution worker in the background
+        startWorker();
 
         app.listen(PORT, () => {
             console.log(`✅ Execution service running on port ${PORT}`);

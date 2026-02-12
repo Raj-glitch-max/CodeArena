@@ -20,4 +20,4 @@ RUN npm ci --omit=dev
 EXPOSE 3003                                       
 
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/workers/executionWorker.js"]                    
+CMD ["node", "dist/index.js"]
