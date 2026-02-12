@@ -5,7 +5,16 @@ pipeline {
         TAG = "${BUILD_NUMBER}"
     }
     stages {
-        stage('Parallel Build & Test') {
+        stage('Check Quality') {
+            steps {
+                script {
+                    echo "Checking Code Quality (Lint & Unit Tests)..."
+                    // Running in a temporary container to keep Jenkins host clean
+                    sh "docker run --rm -v ${WORKSPACE}:/app -w /app node:22-alpine sh -c 'npm ci && npm run lint && npm run test'"
+                }
+            }
+        }
+        stage('Parallel Build') {
             parallel {
                 stage('auth service') {
                     steps { sh "docker build -t auth-service:${TAG} -f backend/services/auth-service/DockerFile backend/services/auth-service" }
@@ -30,27 +39,41 @@ pipeline {
         stage('Deploy Cluster'){
             steps {
                 script {
-                    // Hardened Pre-check: Don't just fail; explain WHY if the Credential ID is missing
                     try {
                         withCredentials([string(credentialsId: 'POSTGRES_DB_PASSWORD', variable: 'DB_PASS')]) {
-                            echo "Credentials Validated. Starting Deployment Cluster with TAG: ${TAG}"
-                            
-                            // Force remove containers with conflicting names to avoid "Already in use" errors
+                            echo "Deploying Cluster with TAG: ${TAG}"
                             sh 'docker rm -f codearena-postgres codearena-redis codearena-rabbitmq codearena-auth codearena-battle codearena-rating codearena-websocket codearena-execution codearena-frontend || true'
-                            
-                            // Deploy infrastructure
                             sh "POSTGRES_PASSWORD=${DB_PASS} docker-compose up -d postgres redis rabbitmq"
-                            
-                            // Give DBs a second to breathe
                             sleep 10 
-                            
-                            // Deploy our custom-built services
                             sh "POSTGRES_PASSWORD=${DB_PASS} docker-compose up -d"
                         }
                     } catch (Exception e) {
-                        // User-friendly error message for the interview demo
-                        error "STOP! You haven't set the ID 'POSTGRES_DB_PASSWORD' in Jenkins UI yet. Go to 'Manage Jenkins' -> 'Credentials' and make sure the ID field is exactly 'POSTGRES_DB_PASSWORD' (Case-Sensitive)."
+                        error "STOP! You haven't set the ID 'POSTGRES_DB_PASSWORD' in Jenkins UI. Go to Manage Jenkins -> Credentials."
                     }
+                }
+            }
+        }
+        stage('Verify Health') {
+            steps {
+                script {
+                    echo "Verifying Cluster Health..."
+                    // Wait for all 9 containers to report (healthy)
+                    // We give them 60 seconds (12 checks * 5s)
+                    int attempts = 12
+                    while (attempts > 0) {
+                        def healthyCount = sh(script: 'docker ps --filter "health=healthy" --format "{{.Names}}" | wc -l', returnStdout: true).trim().toInteger()
+                        echo "Healthy services: ${healthyCount}/9 (Postgres, Redis, RabbitMQ, Auth, Battle, Rating, Websocket, Execution, Frontend)"
+                        
+                        if (healthyCount >= 9) {
+                            echo "Cluster is HEALTHY! 🟢"
+                            return
+                        }
+                        
+                        attempts--
+                        echo "Waiting for all services to be healthy... (${attempts} attempts left)"
+                        sleep 5
+                    }
+                    error "Cluster failed to reach healthy state in time! 🔴"
                 }
             }
         }
