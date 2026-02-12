@@ -3,6 +3,8 @@ pipeline {
 
     environment {
         TAG = "${BUILD_NUMBER}"
+        // Securely pulling from Jenkins Credential Store
+        POSTGRES_PASSWORD = credentials('POSTGRES_DB_PASSWORD')
     }
     stages {
         stage('parellel Build & Test') {
@@ -31,15 +33,15 @@ pipeline {
             steps {
                 echo "Deploying Cluster with TAG: ${TAG}"
                 
-                // Senior Move: Force remove containers with conflicting names to avoid "Already in use" errors
+                // Force remove old containers for a clean slate
                 sh 'docker rm -f codearena-postgres codearena-redis codearena-rabbitmq codearena-auth codearena-battle codearena-rating codearena-websocket codearena-execution codearena-frontend || true'
                 
-                // Deploy infrastructure first with a secret password
-                sh 'POSTGRES_PASSWORD=codearena123 docker-compose up -d postgres redis rabbitmq'
-                sleep 10 // Give infrastructure more time to be 'Healthy'
+                // Deploy infrastructure
+                sh 'docker-compose up -d postgres redis rabbitmq'
+                sleep 10
                 
-                // Deploy services
-                sh 'POSTGRES_PASSWORD=codearena123 docker-compose up -d'
+                // Deploy our custom services
+                sh 'docker-compose up -d'
             }
         }
     }
