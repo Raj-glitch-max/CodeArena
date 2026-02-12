@@ -29,19 +29,28 @@ pipeline {
         }
         stage('Deploy Cluster'){
             steps {
-                // Senior Move: Wrap secret loading only inside the block that needs it
-                withCredentials([string(credentialsId: 'POSTGRES_DB_PASSWORD', variable: 'DB_PASS')]) {
-                    echo "Deploying Cluster with TAG: ${TAG}"
-                    
-                    // Force remove old containers for a clean slate
-                    sh 'docker rm -f codearena-postgres codearena-redis codearena-rabbitmq codearena-auth codearena-battle codearena-rating codearena-websocket codearena-execution codearena-frontend || true'
-                    
-                    // Deploy infrastructure
-                    sh "POSTGRES_PASSWORD=${DB_PASS} docker-compose up -d postgres redis rabbitmq"
-                    sleep 10
-                    
-                    // Deploy our custom services
-                    sh "POSTGRES_PASSWORD=${DB_PASS} docker-compose up -d"
+                script {
+                    // Hardened Pre-check: Don't just fail; explain WHY if the Credential ID is missing
+                    try {
+                        withCredentials([string(credentialsId: 'POSTGRES_DB_PASSWORD', variable: 'DB_PASS')]) {
+                            echo "Credentials Validated. Starting Deployment Cluster with TAG: ${TAG}"
+                            
+                            // Force remove containers with conflicting names to avoid "Already in use" errors
+                            sh 'docker rm -f codearena-postgres codearena-redis codearena-rabbitmq codearena-auth codearena-battle codearena-rating codearena-websocket codearena-execution codearena-frontend || true'
+                            
+                            // Deploy infrastructure
+                            sh "POSTGRES_PASSWORD=${DB_PASS} docker-compose up -d postgres redis rabbitmq"
+                            
+                            // Give DBs a second to breathe
+                            sleep 10 
+                            
+                            // Deploy our custom-built services
+                            sh "POSTGRES_PASSWORD=${DB_PASS} docker-compose up -d"
+                        }
+                    } catch (Exception e) {
+                        // User-friendly error message for the interview demo
+                        error "STOP! You haven't set the ID 'POSTGRES_DB_PASSWORD' in Jenkins UI yet. Go to 'Manage Jenkins' -> 'Credentials' and make sure the ID field is exactly 'POSTGRES_DB_PASSWORD' (Case-Sensitive)."
+                    }
                 }
             }
         }
