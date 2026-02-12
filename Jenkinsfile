@@ -32,16 +32,17 @@ pipeline {
                 //     steps { sh 'docker build -t rabbitmq ./backend/services/rabbitmq' }
                 // }
                 stage('frontend') {
-                    steps { sh 'docker build -t frontend:${TAG} -f Dockerfile.frontend .)' }
+                    steps { sh "docker build -t frontend-service:${TAG} -f Dockerfile.frontend ." }
                 }
-                stage('Deploy Cluster'){
-                    steps {
-                        echo 'Deploying standard infrastructure (Postgres, Redis, RabbitMQ) via Compose...'
-                        sh 'docker-compose up -d postgres redis rabbitmq'
-                        echo 'deploying services'
-                        sh 'docker-compose up -d '
-                    }
-                }
+            }
+        }
+        stage('Deploy Cluster'){
+            steps {
+                echo "Deploying Cluster with TAG: ${TAG}"
+                sh 'docker-compose down' // Clean slate
+                sh 'docker-compose up -d postgres redis rabbitmq'
+                sleep 5 // Wait for DBs
+                sh 'docker-compose up -d'
             }
         }
     }

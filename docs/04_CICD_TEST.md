@@ -7,10 +7,10 @@
 ## Level 1: Basics (100 pts)
 
 ### 1.1 What triggers `on: push: branches: [main]`? (10 pts)
-**Your answer:**
+**Your answer:** we whwn we push something to main branch the cicd get triggers
 
 ### 1.2 Difference between `runs-on: ubuntu-latest` vs `self-hosted`? (10 pts)
-**Your answer:**
+**Your answer:** 
 
 ### 1.3 What is `actions/checkout@v3`? (10 pts)
 **Your answer:**
