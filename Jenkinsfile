@@ -1,6 +1,8 @@
 pipeline {
   agent {
     kubernetes {
+      // Use WebSocket to bypass TCP port issues entirely
+      websocket true
       yaml """
 apiVersion: v1
 kind: Pod
@@ -32,12 +34,18 @@ spec:
   }
   
   environment {
-    // Define image names
     REGISTRY_USER = "raj-glitch-max" 
     TAG = "${BUILD_NUMBER}"
   }
 
   stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+        echo "Code checked out successfully"
+      }
+    }
+
     stage('Build Microservices') {
       parallel {
         stage('Auth Service') {
@@ -88,16 +96,14 @@ spec:
     stage('Deploy to Cluster') {
       steps {
         container('kubectl') {
-           script {
-              echo "Restarting deployments to pick up new images (using :latest)..."
-              sh 'kubectl rollout restart deployment/auth-service -n codearena'
-              sh 'kubectl rollout restart deployment/battle-service -n codearena'
-              sh 'kubectl rollout restart deployment/execution-service -n codearena'
-              sh 'kubectl rollout restart deployment/rating-service -n codearena'
-              sh 'kubectl rollout restart deployment/websocket-service -n codearena'
-              // Frontend is likely handled by ingress pointing to a service, assuming a deployment exists
-              // sh 'kubectl rollout restart deployment/frontend -n codearena' 
-           }
+          script {
+            echo "Restarting deployments to pick up new images..."
+            sh 'kubectl rollout restart deployment/auth-service -n codearena'
+            sh 'kubectl rollout restart deployment/battle-service -n codearena'
+            sh 'kubectl rollout restart deployment/execution-service -n codearena'
+            sh 'kubectl rollout restart deployment/rating-service -n codearena'
+            sh 'kubectl rollout restart deployment/websocket-service -n codearena'
+          }
         }
       }
     }
@@ -108,6 +114,15 @@ spec:
           sh 'kubectl get pods -n codearena'
         }
       }
+    }
+  }
+
+  post {
+    success {
+      echo '✅ Pipeline completed successfully!'
+    }
+    failure {
+      echo '❌ Pipeline failed. Check the logs above.'
     }
   }
 }

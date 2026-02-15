@@ -1,29 +1,47 @@
 controller:
-  # Use a fixed tag for stability
   image:
     repository: "jenkins/jenkins"
     tag: "lts"
 
-  # Set admin credentials (CHANGE IN PRODUCTION)
   admin:
     username: "admin"
     password: "admin123"
 
-  # Expose via NodePort for easy Minikube access
+  # Expose via NodePort for Minikube access
   serviceType: NodePort
   nodePort: 32000
 
-  # Pre-install plugins
-  # Pre-install plugins
-  installPlugins: []
+  # ─── CRITICAL: Enable the agent TCP listener (port 50000) ───
+  agentListenerEnabled: true
+  agentListenerPort: 50000
 
-  # Enable JCasC (Configuration as Code)
+  # ─── Pre-install ONLY the essential plugins ───
+  installPlugins:
+    - kubernetes
+    - workflow-aggregator
+    - git
+    - pipeline-stage-view
+
+  # ─── JCasC: auto-configure Kubernetes Cloud on startup ───
   JCasC:
     defaultConfig: true
     configScripts:
-      welcome-message: |
+      kubernetes-cloud: |
         jenkins:
           systemMessage: "Welcome to CodeArena Jenkins!"
+          clouds:
+            - kubernetes:
+                name: "kubernetes"
+                serverUrl: "https://kubernetes.default.svc"
+                skipTlsVerify: true
+                namespace: "jenkins"
+                jenkinsUrl: "http://jenkins.jenkins.svc.cluster.local:8080"
+                jenkinsTunnel: "jenkins-agent.jenkins.svc.cluster.local:50000"
+                connectTimeout: 5
+                readTimeout: 15
+                containerCapStr: "10"
+                maxRequestsPerHostStr: "32"
+                webSocket: true
 
   # Kubernetes Agent Configuration
   agent:

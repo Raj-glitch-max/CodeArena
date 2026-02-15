@@ -1,3 +1,40 @@
+# ─── ClusterRole: Jenkins needs cluster-wide permissions to create agent pods ───
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: jenkins-admin
+rules:
+  - apiGroups: [""]
+    resources:
+      [
+        "pods",
+        "pods/exec",
+        "pods/log",
+        "services",
+        "secrets",
+        "configmaps",
+        "events",
+        "persistentvolumeclaims",
+      ]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps", "extensions"]
+    resources: ["deployments", "replicasets", "statefulsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jenkins-admin-binding
+subjects:
+  - kind: ServiceAccount
+    name: jenkins
+    namespace: jenkins
+roleRef:
+  kind: ClusterRole
+  name: jenkins-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+# ─── Namespace-scoped Role for codearena deployments ───
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
