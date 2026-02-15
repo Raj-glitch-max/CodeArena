@@ -1,8 +1,6 @@
 pipeline {
   agent {
     kubernetes {
-      // Use WebSocket to bypass TCP port issues entirely
-      websocket true
       yaml """
 apiVersion: v1
 kind: Pod
