@@ -41,7 +41,6 @@ controller:
                 readTimeout: 15
                 containerCapStr: "10"
                 maxRequestsPerHostStr: "32"
-                webSocket: true
 
   # Kubernetes Agent Configuration
   agent:
