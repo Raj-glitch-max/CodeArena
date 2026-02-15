@@ -1,0 +1,65 @@
+# =============================================================
+#  POD DISRUPTION BUDGETS (PDB)
+#  Ensure minimum availability during voluntary disruptions
+#  (rolling updates, node drains, cluster upgrades)
+# =============================================================
+
+# Auth Service - always keep at least 1 pod running
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: auth-service-pdb
+  namespace: codearena
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: auth-service
+---
+# Battle Service - always keep at least 2 pods running
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: battle-service-pdb
+  namespace: codearena
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: battle-service
+---
+# Execution Service - always keep at least 3 pods running
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: execution-service-pdb
+  namespace: codearena
+spec:
+  minAvailable: 3
+  selector:
+    matchLabels:
+      app: execution-service
+---
+# Rating Service - always keep at least 1 pod running
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rating-service-pdb
+  namespace: codearena
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: rating-service
+---
+# WebSocket Service - always keep at least 2 pods running
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: websocket-service-pdb
+  namespace: codearena
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: websocket-service

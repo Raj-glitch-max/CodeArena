@@ -1,0 +1,88 @@
+{
+    "dashboard": {
+        "uid": "codearena-microservices",
+        "title": "CodeArena - Microservices",
+        "panels": [
+            {
+                "title": "Active Pods",
+                "targets": [
+                    {
+                        "expr": "count(up{namespace=\"codearena\"})"
+                    }
+                ],
+                "type": "stat",
+                "gridPos": {
+                    "h": 4,
+                    "w": 4,
+                    "x": 0,
+                    "y": 0
+                }
+            },
+            {
+                "title": "CPU Usage by Service",
+                "targets": [
+                    {
+                        "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"codearena\", container!=\"\"}[5m])) by (pod)"
+                    }
+                ],
+                "type": "graph",
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 4
+                }
+            },
+            {
+                "title": "Memory Usage by Service",
+                "targets": [
+                    {
+                        "expr": "sum(container_memory_usage_bytes{namespace=\"codearena\", container!=\"\"}) by (pod) / 1024 / 1024"
+                    }
+                ],
+                "type": "graph",
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 4
+                }
+            },
+            {
+                "title": "Network I/O",
+                "targets": [
+                    {
+                        "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"codearena\"}[5m])) by (pod)",
+                        "legendFormat": "RX {{pod}}"
+                    },
+                    {
+                        "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"codearena\"}[5m])) by (pod)",
+                        "legendFormat": "TX {{pod}}"
+                    }
+                ],
+                "type": "graph",
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 12
+                }
+            },
+            {
+                "title": "NodeJS Event Loop Lag",
+                "targets": [
+                    {
+                        "expr": "nodejs_eventloop_lag_seconds{namespace=\"codearena\"}"
+                    }
+                ],
+                "type": "graph",
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 12
+                }
+            }
+        ]
+    }
+}

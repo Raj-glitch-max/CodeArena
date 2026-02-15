@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: codearena-services-monitor
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - auth-service
+          - battle-service
+          - execution-service
+          - rating-service
+          - websocket-service
+  namespaceSelector:
+    matchNames:
+      - codearena
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

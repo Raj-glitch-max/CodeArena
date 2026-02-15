@@ -1,63 +1,27 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Node modules
+node_modules/
+dist/
+coverage/
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# Environment & Secrets
+# Environment variables
 .env
 .env.*
-*.pem
 
-# Dependencies
-node_modules/
-backend/node_modules/
-
-# Build
-dist/
-build/
-backend/dist/
-
-# Documentation (Excluded per request)
-docs/
-*.md
-!README.md
-LICENSE
-CODE_OF_CONDUCT
-CODE_OF_CONDUCT.md
-CONTRIBUTING.md
-
-# Misc
-.lovable/
-.gemini/
-.idea/
+# IDEs
 .vscode/
+.idea/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+logs/
 *.log
 
-# AWS Deployment (contains secrets and IPs)
-.aws-deployment-info
-.env.production
-*.pem
-ec2-launch.log
-docker-setup.log
-docker-build.log
-
+# OS
+.DS_Store
+Thumbs.db

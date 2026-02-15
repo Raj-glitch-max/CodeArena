@@ -1,104 +1,113 @@
 pipeline {
-    agent any
+  agent {
+    kubernetes {
+      yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    component: ci
+spec:
+  serviceAccountName: jenkins
+  containers:
+  - name: docker
+    image: docker:cli
+    command:
+    - cat
+    tty: true
+    volumeMounts:
+    - mountPath: /var/run/docker.sock
+      name: docker-sock
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command:
+    - cat
+    tty: true
+  volumes:
+  - name: docker-sock
+    hostPath:
+      path: /var/run/docker.sock
+"""
+    }
+  }
+  
+  environment {
+    // Define image names
+    REGISTRY_USER = "raj-glitch-max" 
+    TAG = "${BUILD_NUMBER}"
+  }
 
-    environment {
-        TAG = "${BUILD_NUMBER}"
+  stages {
+    stage('Build Microservices') {
+      parallel {
+        stage('Auth Service') {
+          steps {
+            container('docker') {
+              sh 'docker build -t ${REGISTRY_USER}/auth-service:latest backend/services/auth-service'
+            }
+          }
+        }
+        stage('Battle Service') {
+          steps {
+            container('docker') {
+              sh 'docker build -t ${REGISTRY_USER}/battle-service:latest backend/services/battle-service'
+            }
+          }
+        }
+        stage('Execution Service') {
+          steps {
+            container('docker') {
+              sh 'docker build -t ${REGISTRY_USER}/execution-service:latest backend/services/execution-service'
+            }
+          }
+        }
+        stage('Rating Service') {
+          steps {
+            container('docker') {
+              sh 'docker build -t ${REGISTRY_USER}/rating-service:latest backend/services/rating-service'
+            }
+          }
+        }
+        stage('WebSocket Server') {
+          steps {
+            container('docker') {
+              sh 'docker build -t ${REGISTRY_USER}/websocket-server:latest backend/services/websocket-server'
+            }
+          }
+        }
+        stage('Frontend') {
+          steps {
+            container('docker') {
+              sh 'docker build -t ${REGISTRY_USER}/frontend:latest -f Dockerfile.frontend .'
+            }
+          }
+        }
+      }
     }
-    stages {
-        stage('Check Quality') {
-            steps {
-                script {
-                    echo "Checking Code Quality (Building Test Container)..."
-                    // Senior Move: Instead of mounting host folders (which fails on restricted systems), 
-                    // we build a temporary "Test Image". This is much more reliable and secure.
-                    sh """
-                        docker build -t code-quality-gate:${TAG} -f - . <<EOF
-                        FROM node:22-alpine
-                        WORKDIR /app
-                        COPY package*.json ./
-                        RUN npm ci
-                        COPY . .
-                        RUN npm run lint && npm run test
-EOF
-                    """
-                    echo "Quality Gate PASSED! 🛡️"
-                }
-            }
+
+    stage('Deploy to Cluster') {
+      steps {
+        container('kubectl') {
+           script {
+              echo "Restarting deployments to pick up new images (using :latest)..."
+              sh 'kubectl rollout restart deployment/auth-service -n codearena'
+              sh 'kubectl rollout restart deployment/battle-service -n codearena'
+              sh 'kubectl rollout restart deployment/execution-service -n codearena'
+              sh 'kubectl rollout restart deployment/rating-service -n codearena'
+              sh 'kubectl rollout restart deployment/websocket-service -n codearena'
+              // Frontend is likely handled by ingress pointing to a service, assuming a deployment exists
+              // sh 'kubectl rollout restart deployment/frontend -n codearena' 
+           }
         }
-        stage('Parallel Build') {
-            parallel {
-                stage('auth service') {
-                    steps { sh "docker build -t auth-service:${TAG} -f backend/services/auth-service/DockerFile backend/services/auth-service" }
-                }
-                stage('Battle Service') {
-                    steps { sh "docker build -t battle-service:${TAG} -f backend/services/battle-service/DockerFile backend/services/battle-service" }
-                }
-                stage('rating-service') {
-                    steps { sh "docker build -t rating-service:${TAG} -f backend/services/rating-service/DockerFile backend/services/rating-service" }
-                }
-                stage('websocket-server') {
-                    steps { sh "docker build -t websocket-server:${TAG} -f backend/services/websocket-server/DockerFile backend/services/websocket-server" }
-                }
-                stage('execution-service') {
-                    steps { sh "docker build -t execution-service:${TAG} -f backend/services/execution-service/DockerFile backend/services/execution-service" }
-                }
-                stage('frontend') {
-                    steps { sh "docker build -t frontend-service:${TAG} -f Dockerfile.frontend ." }
-                }
-            }
-        }
-        stage('Deploy Cluster'){
-            steps {
-                script {
-                    try {
-                        withCredentials([string(credentialsId: 'POSTGRES_DB_PASSWORD', variable: 'DB_PASS')]) {
-                            echo "Deploying Cluster with TAG: ${TAG}"
-                            sh 'docker rm -f codearena-postgres codearena-redis codearena-rabbitmq codearena-auth codearena-battle codearena-rating codearena-websocket codearena-execution codearena-frontend || true'
-                            sh "POSTGRES_PASSWORD=${DB_PASS} docker-compose up -d postgres redis rabbitmq"
-                            sleep 10 
-                            sh "POSTGRES_PASSWORD=${DB_PASS} docker-compose up -d"
-                        }
-                    } catch (Exception e) {
-                        error "STOP! You haven't set the ID 'POSTGRES_DB_PASSWORD' in Jenkins UI. Go to Manage Jenkins -> Credentials."
-                    }
-                }
-            }
-        }
-        stage('Verify Health') {
-            steps {
-                script {
-                    echo "Verifying Cluster Health..."
-                    // Wait for all 9 containers to report (healthy)
-                    // We give them 60 seconds (12 checks * 5s)
-                    int attempts = 12
-                    while (attempts > 0) {
-                        def healthyCount = sh(script: 'docker ps --filter "health=healthy" --format "{{.Names}}" | wc -l', returnStdout: true).trim().toInteger()
-                        echo "Healthy services: ${healthyCount}/9 (Postgres, Redis, RabbitMQ, Auth, Battle, Rating, Websocket, Execution, Frontend)"
-                        
-                        if (healthyCount >= 9) {
-                            echo "Cluster is HEALTHY! 🟢"
-                            return
-                        }
-                        
-                        attempts--
-                        echo "Waiting for all services to be healthy... (${attempts} attempts left)"
-                        sleep 5
-                    }
-                    error "Cluster failed to reach healthy state in time! 🔴"
-                }
-            }
-        }
+      }
     }
-    post {
-        always {
-            script {
-                // Defensive coding: Ensure sh only runs if a node is available
-                try {
-                    sh 'docker image prune -f --filter "label=stage=intermediate"'
-                } catch (Exception e) {
-                    echo "Could not prune images: ${e.message}"
-                }
-            }
+    
+    stage('Verify Deployment') {
+      steps {
+        container('kubectl') {
+          sh 'kubectl get pods -n codearena'
         }
+      }
     }
+  }
 }

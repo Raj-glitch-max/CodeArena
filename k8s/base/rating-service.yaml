@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rating-config
+  namespace: codearena
+data:
+  PORT: "3004"
+  NODE_ENV: "production"
+  DATABASE_URL: "postgresql://postgres:postgres123@postgres:5432/codearena"
+  REDIS_URL: "redis://redis:6379"
+  K_FACTOR: "32"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rating-service
+  namespace: codearena
+  labels:
+    app: rating-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: rating-service
+  template:
+    metadata:
+      labels:
+        app: rating-service
+    spec:
+      containers:
+        - name: rating-service
+          image: raj-glitch-max/rating-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3004
+              name: http
+          envFrom:
+            - configMapRef:
+                name: rating-config
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3004
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3004
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rating-service
+  namespace: codearena
+  labels:
+    app: rating-service
+spec:
+  selector:
+    app: rating-service
+  ports:
+    - port: 3004
+      targetPort: 3004
+      name: http
+  type: ClusterIP

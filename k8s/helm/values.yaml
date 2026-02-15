@@ -1,0 +1,177 @@
+# =====================================================
+#  CodeArena Helm Chart - values.yaml
+#  Override these values per environment
+# =====================================================
+
+# -- Global settings
+global:
+  namespace: codearena
+  imagePullPolicy: IfNotPresent
+
+# -- PostgreSQL
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: 15-alpine
+  persistence:
+    size: 5Gi
+    storageClass: ""
+  config:
+    database: codearena
+    username: postgres
+    password: postgres123
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# -- Redis
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: 7-alpine
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# -- Auth Service
+authService:
+  enabled: true
+  image:
+    repository: raj-glitch-max/auth-service
+    tag: latest
+  replicas: 2
+  port: 3001
+  env:
+    NODE_ENV: production
+    JWT_EXPIRES_IN: 7d
+  secret:
+    jwtSecret: your-super-secret-jwt-key-change-in-production
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+
+# -- Battle Service
+battleService:
+  enabled: true
+  image:
+    repository: raj-glitch-max/battle-service
+    tag: latest
+  replicas: 3
+  port: 3002
+  resources:
+    requests:
+      cpu: 300m
+      memory: 512Mi
+    limits:
+      cpu: 800m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 15
+    targetCPUUtilization: 70
+
+# -- Execution Service
+executionService:
+  enabled: true
+  image:
+    repository: raj-glitch-max/execution-service
+    tag: latest
+  replicas: 5
+  port: 3003
+  env:
+    TIMEOUT_MS: "10000"
+    MAX_MEMORY_MB: "512"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 30
+    targetCPUUtilization: 60
+
+# -- Rating Service
+ratingService:
+  enabled: true
+  image:
+    repository: raj-glitch-max/rating-service
+    tag: latest
+  replicas: 2
+  port: 3004
+  env:
+    K_FACTOR: "32"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilization: 70
+
+# -- WebSocket Service
+websocketService:
+  enabled: true
+  image:
+    repository: raj-glitch-max/websocket-service
+    tag: latest
+  replicas: 3
+  port: 3005
+  resources:
+    requests:
+      cpu: 300m
+      memory: 512Mi
+    limits:
+      cpu: 800m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilization: 60
+
+# -- Ingress
+ingress:
+  enabled: true
+  className: nginx
+  host: codearena.local
+  wsHost: ws.codearena.local
+  tls: false
+  annotations: {}
+
+# -- Network Policies
+networkPolicies:
+  enabled: false
+
+# -- Pod Disruption Budgets
+podDisruptionBudgets:
+  enabled: true

@@ -11,11 +11,19 @@ dotenv.config();
 const PORT = process.env.PORT || 3000;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
+// Prometheus Metrics
+import client from 'prom-client';
+const register = new client.Registry();
+client.collectDefaultMetrics({ register });
+
 // Create HTTP server with health check listener
-const httpServer = createServer((req, res) => {
+const httpServer = createServer(async (req, res) => {
     if (req.url === '/health' && req.method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'healthy', timestamp: new Date().toISOString() }));
+    } else if (req.url === '/metrics' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': register.contentType });
+        res.end(await register.metrics());
     } else {
         res.writeHead(404);
         res.end();

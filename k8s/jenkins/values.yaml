@@ -1,0 +1,36 @@
+controller:
+  # Use a fixed tag for stability
+  image:
+    repository: "jenkins/jenkins"
+    tag: "lts"
+
+  # Set admin credentials (CHANGE IN PRODUCTION)
+  admin:
+    username: "admin"
+    password: "admin123"
+
+  # Expose via NodePort for easy Minikube access
+  serviceType: NodePort
+  nodePort: 32000
+
+  # Pre-install plugins
+  # Pre-install plugins
+  installPlugins: []
+
+  # Enable JCasC (Configuration as Code)
+  JCasC:
+    defaultConfig: true
+    configScripts:
+      welcome-message: |
+        jenkins:
+          systemMessage: "Welcome to CodeArena Jenkins!"
+
+  # Kubernetes Agent Configuration
+  agent:
+    enabled: true
+    podName: "default"
+    containerName: "jnlp"
+
+persistence:
+  enabled: true
+  size: 8Gi

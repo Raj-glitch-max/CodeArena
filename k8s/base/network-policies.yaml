@@ -1,0 +1,308 @@
+# =============================================================
+#  NETWORK POLICIES - Zero-Trust Networking
+#  Only allow traffic that is explicitly permitted
+# =============================================================
+
+# Default deny all ingress/egress in namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: codearena
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# Allow DNS resolution for all pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: codearena
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# PostgreSQL: only from services that need database
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-netpol
+  namespace: codearena
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: auth-service
+        - podSelector:
+            matchLabels:
+              app: battle-service
+        - podSelector:
+            matchLabels:
+              app: rating-service
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# Redis: only from services that need cache
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-netpol
+  namespace: codearena
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: auth-service
+        - podSelector:
+            matchLabels:
+              app: battle-service
+        - podSelector:
+            matchLabels:
+              app: execution-service
+        - podSelector:
+            matchLabels:
+              app: rating-service
+        - podSelector:
+            matchLabels:
+              app: websocket-service
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# Auth Service: from ingress + internal services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: auth-service-netpol
+  namespace: codearena
+spec:
+  podSelector:
+    matchLabels:
+      app: auth-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app: battle-service
+        - podSelector:
+            matchLabels:
+              app: websocket-service
+      ports:
+        - protocol: TCP
+          port: 3001
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# Battle Service: from ingress + websocket
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: battle-service-netpol
+  namespace: codearena
+spec:
+  podSelector:
+    matchLabels:
+      app: battle-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app: websocket-service
+      ports:
+        - protocol: TCP
+          port: 3002
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app: auth-service
+      ports:
+        - protocol: TCP
+          port: 3001
+    - to:
+        - podSelector:
+            matchLabels:
+              app: execution-service
+      ports:
+        - protocol: TCP
+          port: 3003
+---
+# Execution Service: from battle service only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: execution-service-netpol
+  namespace: codearena
+spec:
+  podSelector:
+    matchLabels:
+      app: execution-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app: battle-service
+      ports:
+        - protocol: TCP
+          port: 3003
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# Rating Service: from ingress + battle service
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: rating-service-netpol
+  namespace: codearena
+spec:
+  podSelector:
+    matchLabels:
+      app: rating-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app: battle-service
+      ports:
+        - protocol: TCP
+          port: 3004
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# WebSocket Service: from ingress only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: websocket-service-netpol
+  namespace: codearena
+spec:
+  podSelector:
+    matchLabels:
+      app: websocket-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3005
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app: auth-service
+      ports:
+        - protocol: TCP
+          port: 3001
+    - to:
+        - podSelector:
+            matchLabels:
+              app: battle-service
+      ports:
+        - protocol: TCP
+          port: 3002

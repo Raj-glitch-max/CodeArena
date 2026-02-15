@@ -17,6 +17,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.2.4",
     "express": "^5.2.1",
+    "prom-client": "^15.1.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

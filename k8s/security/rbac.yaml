@@ -1,0 +1,42 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer
+  namespace: codearena
+rules:
+  - apiGroups: ["", "apps", "batch"]
+    resources: ["pods", "deployments", "services", "jobs", "configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: devops
+  namespace: codearena
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-cd-pipeline
+  namespace: codearena
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-cd-binding
+  namespace: codearena
+subjects:
+  - kind: ServiceAccount
+    name: ci-cd-pipeline
+    namespace: codearena
+roleRef:
+  kind: Role
+  name: devops
+  apiGroup: rbac.authorization.k8s.io

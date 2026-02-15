@@ -1,0 +1,389 @@
+# =============================================================
+#  ALL MICROSERVICES (Deployments + Services + ConfigMaps)
+# =============================================================
+
+# --------------- AUTH SERVICE ---------------
+{{- if .Values.authService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auth-config
+  namespace: {{ .Values.global.namespace }}
+data:
+  PORT: "{{ .Values.authService.port }}"
+  NODE_ENV: {{ .Values.authService.env.NODE_ENV }}
+  DATABASE_URL: {{ include "codearena.databaseUrl" . | quote }}
+  REDIS_URL: {{ include "codearena.redisUrl" . | quote }}
+  JWT_EXPIRES_IN: {{ .Values.authService.env.JWT_EXPIRES_IN }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: auth-secret
+  namespace: {{ .Values.global.namespace }}
+type: Opaque
+stringData:
+  JWT_SECRET: {{ .Values.authService.secret.jwtSecret }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: auth-service
+    {{- include "codearena.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.authService.replicas }}
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+        - name: auth-service
+          image: "{{ .Values.authService.image.repository }}:{{ .Values.authService.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.authService.port }}
+          envFrom:
+            - configMapRef:
+                name: auth-config
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secret
+                  key: JWT_SECRET
+          resources:
+            {{- toYaml .Values.authService.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.authService.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.authService.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: auth-service
+    {{- include "codearena.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - port: {{ .Values.authService.port }}
+      targetPort: {{ .Values.authService.port }}
+  type: ClusterIP
+{{- end }}
+---
+# --------------- BATTLE SERVICE ---------------
+{{- if .Values.battleService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: battle-config
+  namespace: {{ .Values.global.namespace }}
+data:
+  PORT: "{{ .Values.battleService.port }}"
+  NODE_ENV: production
+  DATABASE_URL: {{ include "codearena.databaseUrl" . | quote }}
+  REDIS_URL: {{ include "codearena.redisUrl" . | quote }}
+  AUTH_SERVICE_URL: "http://auth-service:{{ .Values.authService.port }}"
+  EXECUTION_SERVICE_URL: "http://execution-service:{{ .Values.executionService.port }}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: battle-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: battle-service
+    {{- include "codearena.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.battleService.replicas }}
+  selector:
+    matchLabels:
+      app: battle-service
+  template:
+    metadata:
+      labels:
+        app: battle-service
+    spec:
+      containers:
+        - name: battle-service
+          image: "{{ .Values.battleService.image.repository }}:{{ .Values.battleService.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.battleService.port }}
+          envFrom:
+            - configMapRef:
+                name: battle-config
+          resources:
+            {{- toYaml .Values.battleService.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.battleService.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.battleService.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: battle-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: battle-service
+    {{- include "codearena.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: battle-service
+  ports:
+    - port: {{ .Values.battleService.port }}
+      targetPort: {{ .Values.battleService.port }}
+  type: ClusterIP
+{{- end }}
+---
+# --------------- EXECUTION SERVICE ---------------
+{{- if .Values.executionService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: execution-config
+  namespace: {{ .Values.global.namespace }}
+data:
+  PORT: "{{ .Values.executionService.port }}"
+  NODE_ENV: production
+  REDIS_URL: {{ include "codearena.redisUrl" . | quote }}
+  TIMEOUT_MS: {{ .Values.executionService.env.TIMEOUT_MS | quote }}
+  MAX_MEMORY_MB: {{ .Values.executionService.env.MAX_MEMORY_MB | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: execution-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: execution-service
+    {{- include "codearena.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.executionService.replicas }}
+  selector:
+    matchLabels:
+      app: execution-service
+  template:
+    metadata:
+      labels:
+        app: execution-service
+    spec:
+      containers:
+        - name: execution-service
+          image: "{{ .Values.executionService.image.repository }}:{{ .Values.executionService.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.executionService.port }}
+          envFrom:
+            - configMapRef:
+                name: execution-config
+          resources:
+            {{- toYaml .Values.executionService.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.executionService.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.executionService.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: execution-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: execution-service
+    {{- include "codearena.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: execution-service
+  ports:
+    - port: {{ .Values.executionService.port }}
+      targetPort: {{ .Values.executionService.port }}
+  type: ClusterIP
+{{- end }}
+---
+# --------------- RATING SERVICE ---------------
+{{- if .Values.ratingService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rating-config
+  namespace: {{ .Values.global.namespace }}
+data:
+  PORT: "{{ .Values.ratingService.port }}"
+  NODE_ENV: production
+  DATABASE_URL: {{ include "codearena.databaseUrl" . | quote }}
+  REDIS_URL: {{ include "codearena.redisUrl" . | quote }}
+  K_FACTOR: {{ .Values.ratingService.env.K_FACTOR | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rating-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: rating-service
+    {{- include "codearena.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.ratingService.replicas }}
+  selector:
+    matchLabels:
+      app: rating-service
+  template:
+    metadata:
+      labels:
+        app: rating-service
+    spec:
+      containers:
+        - name: rating-service
+          image: "{{ .Values.ratingService.image.repository }}:{{ .Values.ratingService.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.ratingService.port }}
+          envFrom:
+            - configMapRef:
+                name: rating-config
+          resources:
+            {{- toYaml .Values.ratingService.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.ratingService.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.ratingService.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rating-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: rating-service
+    {{- include "codearena.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: rating-service
+  ports:
+    - port: {{ .Values.ratingService.port }}
+      targetPort: {{ .Values.ratingService.port }}
+  type: ClusterIP
+{{- end }}
+---
+# --------------- WEBSOCKET SERVICE ---------------
+{{- if .Values.websocketService.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: websocket-config
+  namespace: {{ .Values.global.namespace }}
+data:
+  PORT: "{{ .Values.websocketService.port }}"
+  NODE_ENV: production
+  REDIS_URL: {{ include "codearena.redisUrl" . | quote }}
+  AUTH_SERVICE_URL: "http://auth-service:{{ .Values.authService.port }}"
+  BATTLE_SERVICE_URL: "http://battle-service:{{ .Values.battleService.port }}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: websocket-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: websocket-service
+    {{- include "codearena.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.websocketService.replicas }}
+  selector:
+    matchLabels:
+      app: websocket-service
+  template:
+    metadata:
+      labels:
+        app: websocket-service
+    spec:
+      containers:
+        - name: websocket-service
+          image: "{{ .Values.websocketService.image.repository }}:{{ .Values.websocketService.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.websocketService.port }}
+          envFrom:
+            - configMapRef:
+                name: websocket-config
+          resources:
+            {{- toYaml .Values.websocketService.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.websocketService.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.websocketService.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: websocket-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: websocket-service
+    {{- include "codearena.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: websocket-service
+  ports:
+    - port: {{ .Values.websocketService.port }}
+      targetPort: {{ .Values.websocketService.port }}
+  type: ClusterIP
+  sessionAffinity: ClientIP
+{{- end }}

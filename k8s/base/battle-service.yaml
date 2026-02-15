@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: battle-config
+  namespace: codearena
+data:
+  PORT: "3002"
+  NODE_ENV: "production"
+  DATABASE_URL: "postgresql://postgres:postgres123@postgres:5432/codearena"
+  REDIS_URL: "redis://redis:6379"
+  AUTH_SERVICE_URL: "http://auth-service:3001"
+  EXECUTION_SERVICE_URL: "http://execution-service:3003"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: battle-service
+  namespace: codearena
+  labels:
+    app: battle-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: battle-service
+  template:
+    metadata:
+      labels:
+        app: battle-service
+    spec:
+      containers:
+        - name: battle-service
+          image: raj-glitch-max/battle-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3002
+              name: http
+          envFrom:
+            - configMapRef:
+                name: battle-config
+          resources:
+            requests:
+              cpu: 300m
+              memory: 512Mi
+            limits:
+              cpu: 800m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: battle-service
+  namespace: codearena
+  labels:
+    app: battle-service
+spec:
+  selector:
+    app: battle-service
+  ports:
+    - port: 3002
+      targetPort: 3002
+      name: http
+  type: ClusterIP

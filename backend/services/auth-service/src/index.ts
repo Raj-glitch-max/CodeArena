@@ -23,6 +23,16 @@ app.get('/health', (req, res) => {
 // Routes
 app.use('/api/auth', authRoutes);
 
+// Prometheus Metrics
+import client from 'prom-client';
+const register = new client.Registry();
+client.collectDefaultMetrics({ register });
+
+app.get('/metrics', async (req, res) => {
+    res.setHeader('Content-Type', register.contentType);
+    res.send(await register.metrics());
+});
+
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     console.error(err.stack);

@@ -17,7 +17,8 @@
     "dotenv": "^17.2.4",
     "express": "^5.2.1",
     "ioredis": "^5.9.2",
-    "prisma": "^5.22.0"
+    "prisma": "^5.22.0",
+    "prom-client": "^15.1.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

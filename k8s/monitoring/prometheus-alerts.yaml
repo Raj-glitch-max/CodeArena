@@ -1,0 +1,50 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: codearena-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  groups:
+    - name: codearena
+      rules:
+        # High CPU alert
+        - alert: HighCPUUsage
+          expr: rate(container_cpu_usage_seconds_total{namespace="codearena"}[5m]) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU usage on {{ $labels.pod }}"
+            description: "CPU usage is above 80% for 5 minutes"
+
+        # High memory alert
+        - alert: HighMemoryUsage
+          expr: container_memory_usage_bytes{namespace="codearena"} / container_spec_memory_limit_bytes > 0.9
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage on {{ $labels.pod }}"
+            description: "Memory usage is above 90%"
+
+        # Pod crash loop
+        - alert: PodCrashLooping
+          expr: rate(kube_pod_container_status_restarts_total{namespace="codearena"}[15m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ $labels.pod }} is crash looping"
+            description: "Pod has restarted {{ $value }} times in the last 15 minutes"
+
+        # Service down
+        - alert: ServiceDown
+          expr: up{namespace="codearena"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Service {{ $labels.job }} is down"
+            description: "Service has been down for 2 minutes"

@@ -1,0 +1,87 @@
+# =============================================================
+#  INGRESS (API + WebSocket)
+# =============================================================
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: codearena-ingress
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  labels:
+    {{- include "codearena.labels" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: codearena-tls
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: {{ .Values.authService.port }}
+          - path: /api/battle
+            pathType: Prefix
+            backend:
+              service:
+                name: battle-service
+                port:
+                  number: {{ .Values.battleService.port }}
+          - path: /api/execution
+            pathType: Prefix
+            backend:
+              service:
+                name: execution-service
+                port:
+                  number: {{ .Values.executionService.port }}
+          - path: /api/rating
+            pathType: Prefix
+            backend:
+              service:
+                name: rating-service
+                port:
+                  number: {{ .Values.ratingService.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: websocket-ingress
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/websocket-services: "websocket-service"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "codearena-ws-affinity"
+  labels:
+    {{- include "codearena.labels" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ .Values.ingress.wsHost }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: websocket-service
+                port:
+                  number: {{ .Values.websocketService.port }}
+{{- end }}

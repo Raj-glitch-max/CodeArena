@@ -1,0 +1,23 @@
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: jenkins-deployer
+  namespace: codearena
+rules:
+  - apiGroups: ["apps", "extensions", ""]
+    resources: ["deployments", "services", "pods", "configmaps", "secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: jenkins-deployer-binding
+  namespace: codearena
+subjects:
+  - kind: ServiceAccount
+    name: jenkins
+    namespace: jenkins
+roleRef:
+  kind: Role
+  name: jenkins-deployer
+  apiGroup: rbac.authorization.k8s.io
