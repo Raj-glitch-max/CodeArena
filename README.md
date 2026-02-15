@@ -1,76 +1,122 @@
-# CodeArena ⚔️
-> Real-time 1v1 Competitive Coding Platform
+# CodeArena
 
-CodeArena is a modern, high-performance platform where developers compete against each other to solve algorithmic challenges in real-time. Featuring a robust microservices architecture, live execution environment, and an ELO-based rating system.
+![Build](https://img.shields.io/badge/build-passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![K8s](https://img.shields.io/badge/kubernetes-1.28-326CE5?logo=kubernetes&logoColor=white)
+![Node](https://img.shields.io/badge/node-20.10-339933?logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/typescript-5.8-3178C6?logo=typescript&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/postgresql-15-4169E1?logo=postgresql&logoColor=white)
 
-## 🚀 Features
+Real-time competitive coding platform. Players match 1v1 or in groups, solve algorithmic challenges under time pressure, and climb an ELO-based leaderboard. Built as a microservices system deployed on Kubernetes.
 
-- **1v1 Battles**: Real-time matchmaking and code synchronization with opponents.
-- **Live Execution**: Secure, sandboxed code execution (JavaScript, Python, Java, C++) powered by Docker.
-- **Rating System**: Dynamic ELO system that adjusts player ranks (Bronze to Grandmaster) based on performance.
-- **Interactive Editor**: Monaco-based editor with syntax highlighting, auto-completion, and multiple language support.
-- **Real-time Updates**: WebSocket-driven UI for live battle status, test case results, and opponent progress.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     React 18 + Vite + TailwindCSS               │
+│                      (Cyberpunk Theme / SPA)                    │
+└──────────────┬─────────────┬──────────────┬─────────────────────┘
+               │             │              │
+    ┌──────────▼──┐  ┌───────▼────┐  ┌──────▼───────┐
+    │ Auth Service │  │Battle Svc  │  │ WebSocket Svc│
+    │  :3001      │  │  :3002     │  │   :3005      │
+    │  JWT/CRUD   │  │ Matchmaker │  │  Socket.IO   │
+    └──────┬──────┘  └───┬───┬───┘  └──────┬───────┘
+           │             │   │              │
+    ┌──────▼─────────────▼───┘    ┌─────────▼──────┐
+    │   PostgreSQL 15             │    Redis 7     │
+    │   (StatefulSet + PVC)       │   (Cache/PubSub)│
+    └─────────────────────────────┴────────────────┘
+               │
+    ┌──────────▼──────────┐   ┌────────────────────┐
+    │  Execution Service  │   │   Rating Service   │
+    │      :3003          │   │      :3004         │
+    │  Code Sandbox       │   │   ELO Algorithm    │
+    └─────────┬───────────┘   └────────────────────┘
+              │
+    ┌─────────▼───────────┐
+    │     RabbitMQ        │
+    │  (Task Queue)       │
+    └─────────────────────┘
+```
 
-## 🛠️ Tech Stack
+## Quick Start
 
-### Frontend
-- **Framework**: React 18 + TypeScript
-- **Styling**: Tailwind CSS + Framer Motion
-- **Build Tool**: Vite
-- **State Management**: React Query + Context API
+```bash
+# Clone
+git clone https://github.com/Raj-glitch-max/CodeArena.git
+cd CodeArena
 
-### Backend Microservices
-- **API Gateway/Services**: Node.js + Express
-- **Communication**: REST + WebSockets (Socket.io)
-- **Message Queue**: RabbitMQ (for async code execution)
-- **Database**: PostgreSQL (Primary Data) + Redis (Caching & Leaderboards)
-- **ORM**: Prisma
+# Start everything (PostgreSQL, Redis, RabbitMQ, 6 services, frontend)
+docker compose up --build
 
-## 🏗️ Architecture
+# Frontend: http://localhost:8083
+# Auth API:  http://localhost:3001/api/auth
+# WebSocket: http://localhost:3000
+```
 
-The platform is built on a scalable microservices architecture:
-1.  **Auth Service**: Handles user authentication and JWT management.
-2.  **Battle Service**: Manages battle lifecycles, problem distribution, and state.
-3.  **Execution Service**: secure code execution worker that runs user submissions against test cases.
-4.  **Rating Service**: Calculates ELO changes and updates leaderboards.
-5.  **WebSocket Server**: Orchestrates real-time events between clients and services.
+## Tech Stack
 
-## 📦 Getting Started
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| Frontend | React + Vite + TypeScript | 18.3 / 5.4 / 5.8 |
+| Styling | TailwindCSS + Radix UI | 3.4 |
+| Backend | Node.js + Express | 20.10 / 4.x |
+| Database | PostgreSQL | 15-alpine |
+| Cache | Redis | 7-alpine |
+| Queue | RabbitMQ | 3-management |
+| Real-time | Socket.IO | 4.8 |
+| Container | Docker + Docker Compose | 24.0 / 3.8 |
+| Orchestration | Kubernetes (Minikube / EKS) | 1.28 |
+| IaC | Terraform | 1.6 |
+| Monitoring | Prometheus + Grafana | 2.47 / 10.1 |
+| CI/CD | Jenkins + GitHub Actions | 2.541 |
 
-### Prerequisites
-- Node.js (v18+)
-- Docker & Docker Compose
-- PostgreSQL & Redis (or use Docker)
+## Microservices
 
-### Installation
+| Service | Port | Role |
+|---------|------|------|
+| auth-service | 3001 | JWT authentication, user CRUD |
+| battle-service | 3002 | Battle creation, matchmaking, game state |
+| execution-service | 3003 | Sandboxed code execution via RabbitMQ workers |
+| rating-service | 3004 | ELO ratings, leaderboard |
+| websocket-service | 3005 | Socket.IO real-time events, live progress |
 
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/Raj-glitch-max/CodeArena.git
-    cd CodeArena
-    ```
+## Documentation
 
-2.  **Install Dependencies**
-    ```bash
-    npm install
-    cd backend && npm install
-    ```
+All documentation lives in [`/docs`](docs/README.md):
 
-3.  **Start Infrastructure**
-    ```bash
-    cd backend/docker
-    docker-compose up -d
-    ```
+- [Architecture](docs/ARCHITECTURE.md) — system design, data flow, tech choices
+- [Local Setup](docs/getting-started/local-setup.md) — Docker Compose dev environment
+- [Environment Variables](docs/getting-started/environment-variables.md)
+- [Microservices](docs/microservices/) — per-service API docs
+- [Kubernetes](docs/infrastructure/kubernetes.md) — deployment manifests
+- [Terraform](docs/infrastructure/terraform.md) — AWS infrastructure
+- [Monitoring](docs/infrastructure/monitoring.md) — Prometheus + Grafana
+- [Security](docs/security/) — RBAC, network policies, secrets
+- [Troubleshooting](docs/operations/troubleshooting.md) — real errors and fixes
 
-4.  **Run Development Servers**
-    ```bash
-    # Root (Frontend)
-    npm run dev
+## Project Structure
 
-    # Backend
-    cd backend && npm run dev
-    ```
+```
+codebattle/
+├── src/                    # React frontend (Vite + TypeScript)
+├── backend/services/       # Node.js microservices
+│   ├── auth-service/       # JWT auth, user management
+│   ├── battle-service/     # Battle logic, matchmaking
+│   ├── execution-service/  # Code execution workers
+│   ├── rating-service/     # ELO ratings
+│   └── websocket-server/   # Socket.IO real-time
+├── k8s/                    # Kubernetes manifests
+│   ├── base/               # Deployments, Services, ConfigMaps
+│   ├── monitoring/         # Prometheus rules, Grafana dashboards
+│   ├── security/           # RBAC, network policies
+│   └── jenkins/            # Jenkins Helm values
+├── infra/                  # Terraform modules (VPC, EKS, RDS, ElastiCache)
+├── docs/                   # Documentation
+├── docker-compose.yml      # Local development
+├── Jenkinsfile             # CI/CD pipeline
+└── Dockerfile.frontend     # Frontend container
+```
 
-## 🛡️ License
+## License
 
-This project is proprietary software. All rights reserved.
+MIT

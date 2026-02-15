@@ -1,3 +1,0 @@
-INSTANCE_ID=i-0cf8b02fe8d980d06
-PUBLIC_IP=3.83.251.223
-SSH_COMMAND="ssh -i ~/.ssh/codearena-prod.pem ubuntu@3.83.251.223"
