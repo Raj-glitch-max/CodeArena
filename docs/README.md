@@ -41,5 +41,3 @@
 - [Battle API](api-reference/battle-api.md)
 - [WebSocket Events](api-reference/websocket-events.md)
 
-### Learning Resources
-Historical DevOps learning guides are preserved in [`learning/`](learning/).
