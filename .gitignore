@@ -1,20 +1,28 @@
-# Node modules
+# Dependencies
 node_modules/
 dist/
 coverage/
 
-# Environment variables
+# Environment variables (NEVER commit real secrets)
 .env
 .env.*
+!.env.example
+!.env.production.example
+
+# Lock files (npm only — no Bun)
+bun.lockb
 
 # IDEs
 .vscode/
 .idea/
+*.swp
+*.swo
 
 # Terraform
 .terraform/
 *.tfstate
 *.tfstate.backup
+*.tfplan
 
 # Logs
 npm-debug.log*
@@ -25,3 +33,9 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Scaffold / generated
+.lovable/
+
+# Test artifacts
+*.test-output

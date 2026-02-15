@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
@@ -16,7 +16,7 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres -d codearena" ]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d codearena"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,7 +38,7 @@ services:
       - "6379:6379"
 
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 30s
       retries: 5
@@ -58,7 +58,7 @@ services:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     healthcheck:
-      test: [ "CMD", "rabbitmq-diagnostics", "ping" ]
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -71,7 +71,7 @@ services:
     image: auth-service:${TAG:-latest}
     build:
       context: ./backend/services/auth-service
-      dockerfile: DockerFile
+      dockerfile: Dockerfile
     container_name: codearena-auth
     environment:
       NODE_ENV: development
@@ -97,7 +97,7 @@ services:
     image: battle-service:${TAG:-latest}
     build:
       context: ./backend/services/battle-service
-      dockerfile: DockerFile
+      dockerfile: Dockerfile
     container_name: codearena-battle
     environment:
       NODE_ENV: development
@@ -124,7 +124,7 @@ services:
     image: execution-service:${TAG:-latest}
     build:
       context: ./backend/services/execution-service
-      dockerfile: DockerFile
+      dockerfile: Dockerfile
     container_name: codearena-execution
     environment:
       NODE_ENV: development
@@ -140,7 +140,13 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3003/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3003/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))",
+        ]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -153,7 +159,7 @@ services:
     image: rating-service:${TAG:-latest}
     build:
       context: ./backend/services/rating-service
-      dockerfile: DockerFile
+      dockerfile: Dockerfile
     container_name: codearena-rating
     environment:
       NODE_ENV: development
@@ -176,7 +182,7 @@ services:
     image: websocket-server:${TAG:-latest}
     build:
       context: ./backend/services/websocket-server
-      dockerfile: DockerFile
+      dockerfile: Dockerfile
     container_name: codearena-websocket
     environment:
       NODE_ENV: development
