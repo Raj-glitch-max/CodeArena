@@ -42,11 +42,10 @@ spec:
         memory: "2Gi"
         cpu: "1000m"
   - name: kubectl
-    image: bitnami/kubectl:latest
+    image: alpine/k8s:1.28.3
     command:
-    - /bin/sh
-    - -c
-    - "trap : TERM INT; sleep infinity & wait"
+    - cat
+    tty: true
     resources:
       requests:
         memory: "64Mi"
