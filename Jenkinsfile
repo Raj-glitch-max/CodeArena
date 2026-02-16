@@ -13,9 +13,7 @@ metadata:
     build: codearena
 spec:
   serviceAccountName: jenkins
-  securityContext:
-    runAsUser: 1000
-    fsGroup: 1000
+  dnsPolicy: ClusterFirst
   containers:
   - name: node
     image: node:20-alpine
