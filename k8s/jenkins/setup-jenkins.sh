@@ -46,7 +46,7 @@ echo ""
 
 # ─── Install Jenkins via Helm ───
 echo "🏗️  Installing Jenkins via Helm..."
-helm repo add jenkins https://charts.jenkins-ci.org 2>/dev/null || true
+helm repo add jenkins https://charts.jenkins.io 2>/dev/null || true
 helm repo update
 
 if helm status jenkins -n jenkins >/dev/null 2>&1; then

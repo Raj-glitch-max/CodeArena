@@ -25,6 +25,11 @@ controller:
     - ws-cleanup:latest
     - pipeline-utility-steps:latest
 
+  # ─── Environment ───
+  containerEnv:
+    - name: JAVA_OPTS
+      value: "-Djava.net.preferIPv4Stack=true -Djenkins.install.runSetupWizard=false"
+
   # ─── JCasC: auto-configure Kubernetes Cloud on startup ───
   JCasC:
     defaultConfig: true
