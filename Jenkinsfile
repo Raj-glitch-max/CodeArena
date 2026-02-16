@@ -44,8 +44,9 @@ spec:
   - name: kubectl
     image: bitnami/kubectl:latest
     command:
-    - cat
-    tty: true
+    - sleep
+    args:
+    - "99d"
     resources:
       requests:
         memory: "64Mi"
