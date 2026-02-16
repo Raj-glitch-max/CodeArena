@@ -40,17 +40,19 @@ controller:
           clouds:
             - kubernetes:
                 name: "kubernetes"
-                serverUrl: "https://kubernetes.default.svc"
+                serverUrl: "https://kubernetes.default.svc.cluster.local"
                 skipTlsVerify: true
                 namespace: "jenkins"
                 jenkinsUrl: "http://jenkins.jenkins.svc.cluster.local:8080"
                 jenkinsTunnel: "jenkins-agent.jenkins.svc.cluster.local:50000"
-                webSocket: true
-                connectTimeout: 5
-                readTimeout: 15
-                containerCapStr: "10"
+                webSocket: false
+                connectTimeout: 300
+                readTimeout: 600
+                containerCapStr: "50"
                 maxRequestsPerHostStr: "32"
                 podRetention: "onFailure"
+                retentionTimeout: 5
+                waitForPodSec: 600
 
   # Kubernetes Agent Configuration
   agent:

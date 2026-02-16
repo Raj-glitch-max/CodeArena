@@ -1,6 +1,9 @@
 pipeline {
   agent {
     kubernetes {
+      cloud 'kubernetes'
+      namespace 'jenkins'
+      defaultContainer 'jnlp'
       yaml """
 apiVersion: v1
 kind: Pod
@@ -10,6 +13,9 @@ metadata:
     build: codearena
 spec:
   serviceAccountName: jenkins
+  securityContext:
+    runAsUser: 1000
+    fsGroup: 1000
   containers:
   - name: node
     image: node:20-alpine
@@ -24,22 +30,21 @@ spec:
         memory: "1Gi"
         cpu: "500m"
   - name: docker
-    image: docker:24-cli
-    command:
-    - cat
-    tty: true
-    volumeMounts:
-    - mountPath: /var/run/docker.sock
-      name: docker-sock
+    image: docker:24-dind
+    securityContext:
+      privileged: true
+    env:
+    - name: DOCKER_TLS_CERTDIR
+      value: ""
     resources:
       requests:
-        memory: "128Mi"
+        memory: "512Mi"
         cpu: "250m"
       limits:
-        memory: "512Mi"
-        cpu: "500m"
+        memory: "2Gi"
+        cpu: "1000m"
   - name: kubectl
-    image: alpine/k8s:1.30.2
+    image: bitnami/kubectl:latest
     command:
     - cat
     tty: true
@@ -50,11 +55,6 @@ spec:
       limits:
         memory: "256Mi"
         cpu: "250m"
-  volumes:
-  - name: docker-sock
-    hostPath:
-      path: /var/run/docker.sock
-      type: Socket
 """
     }
   }
@@ -112,43 +112,66 @@ spec:
         stage('auth-service') {
           steps {
             container('docker') {
-              sh 'docker build -t ${REGISTRY}/auth-service:${BUILD_TAG} -t ${REGISTRY}/auth-service:latest backend/services/auth-service'
+              sh '''
+                dockerd-entrypoint.sh &
+                sleep 10
+                docker build -t ${REGISTRY}/auth-service:${BUILD_TAG} -t ${REGISTRY}/auth-service:latest backend/services/auth-service
+              '''
             }
           }
         }
         stage('battle-service') {
           steps {
             container('docker') {
-              sh 'docker build -t ${REGISTRY}/battle-service:${BUILD_TAG} -t ${REGISTRY}/battle-service:latest backend/services/battle-service'
+              sh '''
+                dockerd-entrypoint.sh &
+                sleep 10
+                docker build -t ${REGISTRY}/battle-service:${BUILD_TAG} -t ${REGISTRY}/battle-service:latest backend/services/battle-service
+              '''
             }
           }
         }
         stage('execution-service') {
           steps {
             container('docker') {
-              sh 'docker build -t ${REGISTRY}/execution-service:${BUILD_TAG} -t ${REGISTRY}/execution-service:latest backend/services/execution-service'
+              sh '''
+                dockerd-entrypoint.sh &
+                sleep 10
+                docker build -t ${REGISTRY}/execution-service:${BUILD_TAG} -t ${REGISTRY}/execution-service:latest backend/services/execution-service
+              '''
             }
           }
         }
         stage('rating-service') {
           steps {
             container('docker') {
-              sh 'docker build -t ${REGISTRY}/rating-service:${BUILD_TAG} -t ${REGISTRY}/rating-service:latest backend/services/rating-service'
+              sh '''
+                dockerd-entrypoint.sh &
+                sleep 10
+                docker build -t ${REGISTRY}/rating-service:${BUILD_TAG} -t ${REGISTRY}/rating-service:latest backend/services/rating-service
+              '''
             }
           }
         }
         stage('websocket-service') {
           steps {
             container('docker') {
-              // NOTE: Source dir is websocket-server, but K8s expects image name websocket-service
-              sh 'docker build -t ${REGISTRY}/websocket-service:${BUILD_TAG} -t ${REGISTRY}/websocket-service:latest backend/services/websocket-server'
+              sh '''
+                dockerd-entrypoint.sh &
+                sleep 10
+                docker build -t ${REGISTRY}/websocket-service:${BUILD_TAG} -t ${REGISTRY}/websocket-service:latest backend/services/websocket-server
+              '''
             }
           }
         }
         stage('frontend') {
           steps {
             container('docker') {
-              sh 'docker build -t ${REGISTRY}/frontend:${BUILD_TAG} -t ${REGISTRY}/frontend:latest -f Dockerfile.frontend .'
+              sh '''
+                dockerd-entrypoint.sh &
+                sleep 10
+                docker build -t ${REGISTRY}/frontend:${BUILD_TAG} -t ${REGISTRY}/frontend:latest -f Dockerfile.frontend .
+              '''
             }
           }
         }

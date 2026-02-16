@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: static-agent
+  namespace: jenkins
+  labels:
+    app: static-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: static-agent
+  template:
+    metadata:
+      labels:
+        app: static-agent
+    spec:
+      serviceAccountName: jenkins
+      containers:
+      - name: agent
+        image: jenkins/inbound-agent:3355.v388858a_47b_33-3-jdk21
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        env:
+        - name: JENKINS_URL
+          value: "http://jenkins.jenkins.svc.cluster.local:8080"
+        - name: JENKINS_TUNNEL
+          value: "jenkins-agent.jenkins.svc.cluster.local:50000"
+        - name: JENKINS_AGENT_NAME
+          value: "static-agent"
+        - name: JENKINS_SECRET
+          value: "REPLACE_ME"
+        - name: JENKINS_AGENT_WORKDIR
+          value: "/home/jenkins/agent"
+        volumeMounts:
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+        - name: workspace-volume
+          mountPath: /home/jenkins/agent
+      volumes:
+      - name: docker-sock
+        hostPath:
+          path: /var/run/docker.sock
+      - name: workspace-volume
+        emptyDir: {}

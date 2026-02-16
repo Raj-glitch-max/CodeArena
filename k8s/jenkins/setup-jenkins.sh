@@ -38,10 +38,26 @@ kubectl create namespace codearena --dry-run=client -o yaml | kubectl apply -f -
 echo -e "${GREEN}✅ Namespaces ready${NC}"
 echo ""
 
+# ─── Create ServiceAccount ───
+echo "👤 Creating Jenkins ServiceAccount..."
+kubectl create serviceaccount jenkins -n jenkins --dry-run=client -o yaml | kubectl apply -f -
+echo -e "${GREEN}✅ ServiceAccount created${NC}"
+echo ""
+
 # ─── Apply RBAC ───
 echo "🔐 Applying RBAC..."
 kubectl apply -f "${SCRIPT_DIR}/rbac-jenkins-deploy.yaml"
 echo -e "${GREEN}✅ RBAC configured${NC}"
+echo ""
+
+# ─── Verify RBAC ───
+echo "🔍 Verifying RBAC permissions..."
+if kubectl auth can-i create pods --as=system:serviceaccount:jenkins:jenkins -n jenkins >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ Jenkins can create pods in jenkins namespace${NC}"
+else
+    echo -e "${RED}❌ Jenkins cannot create pods - RBAC issue!${NC}"
+    exit 1
+fi
 echo ""
 
 # ─── Install Jenkins via Helm ───
@@ -54,11 +70,15 @@ if helm status jenkins -n jenkins >/dev/null 2>&1; then
     helm upgrade jenkins jenkins/jenkins \
       -n jenkins \
       -f "${SCRIPT_DIR}/values.yaml" \
-      --wait --timeout 5m
+      --set controller.serviceAccount.create=false \
+      --set controller.serviceAccount.name=jenkins \
+      --wait --timeout 10m
 else
     helm install jenkins jenkins/jenkins \
       -n jenkins \
       -f "${SCRIPT_DIR}/values.yaml" \
+      --set controller.serviceAccount.create=false \
+      --set controller.serviceAccount.name=jenkins \
       --wait --timeout 10m
 fi
 echo -e "${GREEN}✅ Jenkins installed${NC}"
@@ -66,7 +86,7 @@ echo ""
 
 # ─── Wait for Jenkins to be ready ───
 echo "⏳ Waiting for Jenkins to be ready..."
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=jenkins -n jenkins --timeout=300s
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=jenkins-controller -n jenkins --timeout=300s
 echo -e "${GREEN}✅ Jenkins is running${NC}"
 echo ""
 
@@ -89,6 +109,8 @@ echo "    4. Branch: main"
 echo "    5. Script path: Jenkinsfile"
 echo "    6. Click 'Build Now'"
 echo ""
-echo "  Or use the CLI:"
-echo "    minikube service jenkins -n jenkins --url"
+echo "  Troubleshooting:"
+echo "    - Check logs: kubectl logs -f -l app.kubernetes.io/component=jenkins-controller -n jenkins"
+echo "    - Check agents: kubectl get pods -n jenkins -l jenkins=agent"
+echo "    - Test RBAC: kubectl auth can-i create pods --as=system:serviceaccount:jenkins:jenkins -n jenkins"
 echo ""
