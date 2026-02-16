@@ -1,8 +1,6 @@
 pipeline {
   agent {
     kubernetes {
-      // Use WebSocket instead of TCP JNLP — avoids DNS resolution issues in Minikube
-      websocket true
       yaml """
 apiVersion: v1
 kind: Pod
