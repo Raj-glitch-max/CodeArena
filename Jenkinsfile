@@ -18,7 +18,7 @@ spec:
     tty: true
     resources:
       requests:
-        memory: "512Mi"
+        memory: "256Mi"
         cpu: "250m"
       limits:
         memory: "1Gi"
@@ -33,7 +33,7 @@ spec:
       name: docker-sock
     resources:
       requests:
-        memory: "256Mi"
+        memory: "128Mi"
         cpu: "250m"
       limits:
         memory: "512Mi"
@@ -45,8 +45,8 @@ spec:
     tty: true
     resources:
       requests:
-        memory: "128Mi"
-        cpu: "100m"
+        memory: "64Mi"
+        cpu: "50m"
       limits:
         memory: "256Mi"
         cpu: "250m"
