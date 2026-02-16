@@ -39,7 +39,7 @@ spec:
         memory: "512Mi"
         cpu: "500m"
   - name: kubectl
-    image: bitnami/kubectl:latest
+    image: alpine/k8s:1.30.2
     command:
     - cat
     tty: true
