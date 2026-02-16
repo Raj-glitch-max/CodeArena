@@ -44,9 +44,9 @@ spec:
   - name: kubectl
     image: bitnami/kubectl:latest
     command:
-    - sleep
-    args:
-    - "99d"
+    - /bin/sh
+    - -c
+    - "trap : TERM INT; sleep infinity & wait"
     resources:
       requests:
         memory: "64Mi"
